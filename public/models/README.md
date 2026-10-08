@@ -1,0 +1,1 @@
+Colocar aquí el modelo GLB/glTF de campaña y configurar su URL, altura y orientación en `src/lib/campaign.ts`. Para glTF, conservar los archivos `.bin` y texturas referenciados. No se incluye todavía el modelo definitivo.
