@@ -1,7 +1,7 @@
 "use client";
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Center, useGLTF, useTexture } from "@react-three/drei";
+import { Center, MeshReflectorMaterial, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import type { Artwork } from "@/lib/types";
 import { campaign } from "@/lib/campaign";
@@ -28,25 +28,27 @@ function canvasTexture(width: number, height: number, paint: (ctx: CanvasRenderi
   paint(canvas.getContext("2d")!);
   const texture = new THREE.CanvasTexture(canvas); if (srgb) texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8; return texture;
 }
-function textTexture(lines: { text: string; size: number; color?: string; font?: string }[], background: string, width = 1024, height = 640, top = 65) {
+function imageSilhouetteTexture(image: CanvasImageSource, color: string, width = 1408, height = 572) {
   return canvasTexture(width, height, ctx => {
-    ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "#a7ac9650"; ctx.lineWidth = 3; ctx.strokeRect(17, 17, width - 34, height - 34);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "source-over";
+  });
+}
+function centeredTextTexture(text: string, color: string, width = 1600, height = 220) {
+  return canvasTexture(width, height, ctx => {
+    ctx.clearRect(0, 0, width, height);
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    let y = top;
-    for (const line of lines) {
-      ctx.font = `${line.size}px ${line.font || SANS}`; ctx.fillStyle = line.color || "#fcf7e9";
-      const rows: string[] = []; let row = "";
-      for (const word of line.text.split(/\s+/)) { if (ctx.measureText(`${row} ${word}`).width > width - 100 && row) { rows.push(row); row = word; } else row += (row ? " " : "") + word; }
-      if (row) rows.push(row);
-      for (const rowText of rows.slice(0, 3)) { ctx.fillText(rowText, width / 2, y, width - 90); y += line.size * 1.22; }
-      y += 22;
-    }
+    ctx.font = `600 76px ${SERIF}`; ctx.fillStyle = color;
+    ctx.fillText(text, width / 2, height / 2, width - 40);
   });
 }
 function woodTexture() {
   const texture = canvasTexture(1024, 1024, ctx => {
-    const tones = ["#c58f4a", "#cd9850", "#bd8744", "#c69149", "#c9944c", "#c28b47"]; const planks = 6, w = 1024 / planks;
+    const tones = ["#cc9d63", "#d4a76c", "#c5955b", "#cfa166", "#d1a469", "#c89960"]; const planks = 6, w = 1024 / planks;
     let seed = 7; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < planks; i++) {
       ctx.fillStyle = tones[Math.floor(rand() * tones.length)]; ctx.fillRect(i * w, 0, w, 1024);
@@ -81,29 +83,43 @@ function PhotoFallback({ x, outer }: { x: number; outer: [number, number] }) { r
 // The pet's portrait is the larger frame; the keepsake's frame is smaller so the two read differently.
 const PET_FRAME = { x: -.115, outer: [.3, .4] as [number, number] }, OBJECT_FRAME = { x: .16, outer: [.2, .26] as [number, number] };
 
-type PlaqueLine = { text: string; size: number; color?: string; font?: string };
+type PlaqueLine = { text: string; size: number; color?: string; weight?: number; italic?: boolean };
 // Blue "papel picado" tag: scalloped lower edge, punched dots and corner flowers, text on top.
 function papelPicado(lines: PlaqueLine[], width: number, height: number) {
   return canvasTexture(width, height, ctx => {
-    const r = height * .045, scallop = height * .06, bodyBottom = height - scallop;
-    ctx.clearRect(0, 0, width, height); ctx.fillStyle = "#11275f"; ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(width - r, 0); ctx.quadraticCurveTo(width, 0, width, r); ctx.lineTo(width, bodyBottom);
+    const r = height * .04, scallop = height * .055, bodyBottom = height - scallop;
+    ctx.clearRect(0, 0, width, height);
+    const fill = ctx.createLinearGradient(0, 0, 0, height); fill.addColorStop(0, "#132b6e"); fill.addColorStop(1, "#0d1f52");
+    ctx.fillStyle = fill; ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(width - r, 0); ctx.quadraticCurveTo(width, 0, width, r); ctx.lineTo(width, bodyBottom);
     const count = Math.round(width / (scallop * 2.1)), step = width / count;
-    for (let k = count - 1; k >= 0; k--) { ctx.arc(k * step + step / 2, bodyBottom, step / 2, 0, Math.PI, false); }
+    for (let k = count - 1; k >= 0; k--) ctx.arc(k * step + step / 2, bodyBottom, step / 2, 0, Math.PI, false);
     ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0); ctx.fill();
     ctx.globalCompositeOperation = "destination-out";
-    const dot = height * .012, inset = height * .05;
-    for (let x = inset * 2.2; x < width - inset * 1.6; x += dot * 5.2) { ctx.beginPath(); ctx.arc(x, inset * .6, dot, 0, 7); ctx.fill(); }
-    for (let y = inset * 2.4; y < bodyBottom - inset; y += dot * 5.2) { for (const x of [inset * .6, width - inset * .6]) { ctx.beginPath(); ctx.arc(x, y, dot, 0, 7); ctx.fill(); } }
-    for (let k = 0; k < count; k++) { ctx.beginPath(); ctx.arc(k * step + step / 2, bodyBottom - inset * .55, dot * 1.2, 0, 7); ctx.fill(); }
-    for (const [cx, cy, dir] of [[inset * 1.5, inset * 1.45, 1], [width - inset * 1.5, inset * 1.45, -1]] as const) for (let petal = 0; petal < 5; petal++) { ctx.save(); ctx.translate(cx, cy); ctx.rotate(dir * (petal * .42 - .1)); ctx.beginPath(); ctx.ellipse(dir * inset * .85, 0, inset * .62, inset * .2, 0, 0, 7); ctx.fill(); ctx.restore(); }
+    const dot = height * .011, inset = height * .05;
+    for (let x = width * .3; x <= width * .7; x += dot * 5.4) { ctx.beginPath(); ctx.arc(x, inset * .75, dot, 0, 7); ctx.fill(); }
+    for (let y = inset * 3; y < bodyBottom - inset * 1.4; y += dot * 5.4) for (const x of [inset * .62, width - inset * .62]) { ctx.beginPath(); ctx.arc(x, y, dot, 0, 7); ctx.fill(); }
+    for (let k = 0; k < count; k++) { ctx.beginPath(); ctx.arc(k * step + step / 2, bodyBottom - inset * .5, dot * 1.25, 0, 7); ctx.fill(); }
+    // Teardrop petals fanning from each top corner.
+    for (const [cx, dir] of [[inset * .55, 1], [width - inset * .55, -1]] as const) for (const angle of [.12, .62, 1.12]) {
+      ctx.save(); ctx.translate(cx, inset * .55); ctx.rotate(dir > 0 ? angle : Math.PI - angle); ctx.beginPath();
+      const len = inset * 2.1, wid = inset * .42; ctx.moveTo(inset * .35, 0); ctx.quadraticCurveTo(len * .55, -wid, len, 0); ctx.quadraticCurveTo(len * .55, wid, inset * .35, 0); ctx.fill(); ctx.restore();
+    }
     ctx.globalCompositeOperation = "source-over"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    const total = lines.reduce((sum, l) => sum + l.size * 1.3, 0); let y = (bodyBottom - total) / 2 + inset * .9;
-    for (const line of lines) {
-      ctx.font = `${line.size}px ${line.font || SANS}`; ctx.fillStyle = line.color || "#fdf8ea";
-      const rows: string[] = []; let row = "";
-      for (const word of line.text.split(/\s+/)) { if (ctx.measureText(`${row} ${word}`).width > width - inset * 5 && row) { rows.push(row); row = word; } else row += (row ? " " : "") + word; }
-      if (row) rows.push(row);
-      for (const text of rows.slice(0, 3)) { y += line.size * .65; ctx.fillText(text, width / 2, y, width - inset * 4); y += line.size * .65; }
+    const font = (l: PlaqueLine) => `${l.italic ? "italic " : ""}${l.weight ?? 500} ${l.size}px ${SANS}`;
+    const maxWidth = width - inset * 4.4;
+    const blocks = lines.map(line => {
+      ctx.font = font(line); const rows: string[] = []; let row = "";
+      for (const word of line.text.split(/\s+/)) { if (ctx.measureText(`${row} ${word}`).width > maxWidth && row) { rows.push(row); row = word; } else row += (row ? " " : "") + word; }
+      if (row) rows.push(row); return { line, rows: rows.slice(0, 2) };
+    });
+    const gap = height * .035, lineHeight = (l: PlaqueLine) => l.size * 1.12;
+    const total = blocks.reduce((sum, b) => sum + b.rows.length * lineHeight(b.line), 0) + gap * (blocks.length - 1);
+    let y = inset * 1.6 + (bodyBottom - inset * 2.8 - total) / 2;
+    ctx.shadowColor = "rgba(0,0,0,.25)"; ctx.shadowBlur = 2; ctx.shadowOffsetY = 1;
+    for (const { line, rows } of blocks) {
+      ctx.font = font(line); ctx.fillStyle = line.color || "#fbf7ee";
+      for (const text of rows) { ctx.fillText(text, width / 2, y + lineHeight(line) / 2, maxWidth); y += lineHeight(line); }
+      y += gap;
     }
   });
 }
@@ -111,7 +127,27 @@ function Plaque({ lines, position, size, pixels }: { lines: PlaqueLine[]; positi
   const fonts = useFontsReady();
   const texture = useMemo(() => papelPicado(lines, ...pixels), [lines, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => texture.dispose(), [texture]);
-  return <mesh position={position}><planeGeometry args={size} /><meshStandardMaterial map={texture} transparent alphaTest={.04} roughness={.75} /></mesh>;
+  // A little self-illumination keeps the lettering readable where the spotlight falls off.
+  return <mesh position={position}><planeGeometry args={size} /><meshStandardMaterial map={texture} emissiveMap={texture} emissive="#ffffff" emissiveIntensity={.18} transparent alphaTest={.04} roughness={.85} /></mesh>;
+}
+// Soft vertical falloff (top → bottom) multiplied into a surface's colour: a cheap stand-in for bounce light and contact shadow.
+const gradients = new Map<string, THREE.CanvasTexture>();
+function verticalGradient(stops: [number, string][]) {
+  const key = JSON.stringify(stops); let texture = gradients.get(key);
+  if (!texture) { texture = canvasTexture(4, 256, ctx => { const g = ctx.createLinearGradient(0, 0, 0, 256); stops.forEach(([at, color]) => g.addColorStop(at, color)); ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256); }); gradients.set(key, texture); }
+  return texture;
+}
+const PLINTH_SHADE: [number, string][] = [[0, "#ffffff"], [.45, "#f4ede4"], [.88, "#d8cbb9"], [1, "#b7a58f"]];
+const WALL_SHADE: [number, string][] = [[0, "#b8a28c"], [.22, "#ece0d2"], [.55, "#ffffff"], [.93, "#f1e7da"], [1, "#b9a189"]];
+
+// A small cempasúchil (marigold): orange petal clusters on a short stem, a Día de Muertos touch beside the frames.
+function Cempasuchil({ position }: { position: Vec3 }) {
+  const petals = useMemo(() => Array.from({ length: 14 }, (_, i) => { const a = i * 2.4, r = .018 + (i % 3) * .009; return [Math.cos(a) * r, .012 + (i % 4) * .006, Math.sin(a) * r] as Vec3; }), []);
+  return <group position={position} raycast={() => null}>
+    {petals.map((p, i) => <mesh key={i} position={p}><sphereGeometry args={[.017, 10, 8]} /><meshStandardMaterial color={i % 2 ? "#e2781f" : "#f0952e"} roughness={.9} /></mesh>)}
+    <mesh position={[0, .03, 0]}><sphereGeometry args={[.02, 10, 8]} /><meshStandardMaterial color="#d8661a" roughness={.9} /></mesh>
+    <mesh position={[.04, .006, .02]} rotation={[0, .6, 1.3]}><capsuleGeometry args={[.006, .05, 3, 6]} /><meshStandardMaterial color="#5f7a3a" roughness={.9} /></mesh>
+  </group>;
 }
 // Glass case resting directly on the plinth top, inset from its edges: a faint hazy pane, no frame or cap.
 function Vitrine() {
@@ -128,23 +164,27 @@ function Vitrine() {
 function Plinth({ children }: { children?: ReactNode }) {
   return <>
     <mesh position={[0, .05, 0]} castShadow receiveShadow><boxGeometry args={[.82, .1, .8]} /><meshStandardMaterial color="#c68c54" roughness={.55} /></mesh>
-    <mesh position={[0, .75, 0]} castShadow receiveShadow><boxGeometry args={[.64, 1.3, .62]} /><meshStandardMaterial color="#ebddca" emissive="#5a4632" emissiveIntensity={.1} roughness={.92} /></mesh>
+    <mesh position={[0, .75, 0]} castShadow receiveShadow><boxGeometry args={[.64, 1.3, .62]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#efe3d2" roughness={.95} /></mesh>
     {children}
     <Vitrine />
   </>;
 }
 
+// The plaque's third line: the story's first sentence when it is short, otherwise a gentle default.
+function plaqueNote(description: string) { const first = description.split(/(?<=[.!?…])\s/)[0]?.trim() ?? ""; return first && first.length <= 52 ? first : "Un amor que permanece."; }
+
 function Pedestal({ artwork, index, onSelect, onAdd }: { artwork: Artwork | null; index: number; onSelect: (id: string) => void; onAdd: () => void }) {
   const { position, rotation } = pedestalPositions[index]; const open = () => (artwork ? onSelect(artwork.id) : onAdd());
   const lines = useMemo(() => artwork
-    ? [{ text: artwork.title, size: 56 }, { text: `${artwork.petName}, ${artwork.age} años.`, size: 40 }, { text: "Un amor que permanece.", size: 27, color: "#d6dcf2" }]
-    : [{ text: "Exhibe aquí su historia", size: 62 }, { text: "Toca para crear su obra", size: 34, color: "#d6dcf2" }], [artwork]);
+    ? [{ text: artwork.title, size: 98, weight: 600 }, { text: `${artwork.petName}, ${artwork.age} años.`, size: 70, weight: 600 }, { text: plaqueNote(artwork.description), size: 50, weight: 400, italic: true, color: "#dfe5f7" }]
+    : [{ text: "Exhibe aquí su historia", size: 92, weight: 600 }, { text: "Toca para crear su obra", size: 54, weight: 400, italic: true, color: "#dfe5f7" }], [artwork]);
   return <group position={position} rotation={[0, rotation, 0]} scale={1.15}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[1.9, 1.8]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
     <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
-      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[640, 544]} /></Plinth>
+      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[1024, 872]} /></Plinth>
       {artwork && <>
         <SceneBoundary fallback={<PhotoFallback {...PET_FRAME} />} key={`pet-${artwork.id}`}><Suspense fallback={<PhotoFallback {...PET_FRAME} />}><Photo url={artwork.petImage} {...PET_FRAME} /></Suspense></SceneBoundary>
+        <Cempasuchil position={[-.235, 1.4, .19]} />
         <SceneBoundary fallback={<PhotoFallback {...OBJECT_FRAME} />} key={`object-${artwork.id}`}><Suspense fallback={<PhotoFallback {...OBJECT_FRAME} />}><Photo url={artwork.objectImage} {...OBJECT_FRAME} /></Suspense></SceneBoundary>
       </>}
     </group>
@@ -152,7 +192,7 @@ function Pedestal({ artwork, index, onSelect, onAdd }: { artwork: Artwork | null
 }
 
 let blob: THREE.CanvasTexture | null = null;
-function shadowBlob() { return blob ??= radial([[0, "rgba(20,10,0,.55)"], [.55, "rgba(20,10,0,.28)"], [1, "rgba(20,10,0,0)"]], 256); }
+function shadowBlob() { return blob ??= radial([[0, "rgba(25,12,2,.62)"], [.35, "rgba(25,12,2,.38)"], [.7, "rgba(25,12,2,.12)"], [1, "rgba(25,12,2,0)"]], 256); }
 
 function PlaceholderFigure() {
   return <group position={[0, 1.55, 0]} rotation={[0, -.4, .15]}>
@@ -174,7 +214,7 @@ function CentralExhibit({ onSelect }: { onSelect: (id: string) => void }) {
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[5.4, 4.6]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
     <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
       <mesh position={[0, .06, 0]} castShadow receiveShadow><boxGeometry args={[3.5, .12, 2.7]} /><meshStandardMaterial color="#c68c54" roughness={.55} /></mesh>
-      <mesh position={[0, .37, 0]} castShadow receiveShadow><boxGeometry args={[3.3, .5, 2.5]} /><meshStandardMaterial color="#e4d7c3" emissive="#5a4632" emissiveIntensity={.1} roughness={.95} /></mesh>
+      <mesh position={[0, .37, 0]} castShadow receiveShadow><boxGeometry args={[3.3, .5, 2.5]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#e2d5c1" roughness={.95} /></mesh>
       <mesh position={[0, .625, 0]} receiveShadow><boxGeometry args={[3.36, .02, 2.56]} /><meshStandardMaterial color="#ebe0cd" roughness={.95} /></mesh>
       <Plaque lines={lines} position={[0, .34, 1.256]} size={[1.5, .44]} pixels={[1200, 352]} />
       {campaign.centralModel.url ? <SceneBoundary fallback={<ModelFailed />}><Suspense fallback={<ModelLoading />}><LoadedFigure /></Suspense></SceneBoundary> : <PlaceholderFigure />}
@@ -192,15 +232,19 @@ function Spot({ position, target, intensity = 70, angle = .5, penumbra = .8, col
 function Architecture() {
   const fonts = useFontsReady();
   const floor = useMemo(woodTexture, []);
-  const wash = useMemo(() => radial([[0, "rgba(255,218,165,.62)"], [.3, "rgba(255,208,148,.42)"], [.6, "rgba(255,200,130,.13)"], [.85, "rgba(255,192,118,.03)"], [1, "rgba(255,190,115,0)"]], 512, 1), []);
-  const heroWash = useMemo(() => radial([[0, "rgba(255,226,170,.22)"], [.45, "rgba(255,216,152,.1)"], [1, "rgba(255,205,135,0)"]], 512), []);
-  const sign = useMemo(() => textTexture([{ text: "EL MUSEO", size: 96, color: "#8a6e4f", font: SERIF }, { text: "DE LAS HUELLAS", size: 70, color: "#8a6e4f", font: SERIF }, { text: "LOS OBJETOS QUE CUENTAN SU HISTORIA", size: 20, color: "#a58b6b" }], "#ead8bf", 1024, 400, 110), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { floor.dispose(); wash.dispose(); heroWash.dispose(); }, [floor, wash, heroWash]);
-  useEffect(() => () => sign.dispose(), [sign]);
+  const wash = useMemo(() => radial([[0, "rgba(255,206,160,.34)"], [.25, "rgba(255,200,148,.26)"], [.5, "rgba(255,192,135,.14)"], [.75, "rgba(255,186,124,.05)"], [1, "rgba(255,180,115,0)"]], 512, 1), []);
+  const logoSource = useTexture("/home/Grupo%202.svg");
+  const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#ead8bd"), [logoSource]);
+  const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#dfc9aa"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { floor.dispose(); wash.dispose(); }, [floor, wash]);
+  useEffect(() => () => { sign.dispose(); tagline.dispose(); }, [sign, tagline]);
   const { halfWidth: hw, front, back, height } = HALL; const length = front - back, cz = (front + back) / 2;
-  const wall = <meshStandardMaterial color="#e2c7ad" emissive="#5a3f2a" emissiveIntensity={.2} roughness={1} />;
+  const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#e6cdb4" emissive="#5a3f2a" emissiveIntensity={.14} roughness={1} />;
   return <group>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cz]} receiveShadow><planeGeometry args={[hw * 2, length]} /><meshStandardMaterial map={floor} color="#f0d8b2" roughness={.72} metalness={0} /></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cz]} receiveShadow><planeGeometry args={[hw * 2, length]} />
+      {/* Satin wood: a faint, heavily blurred reflection of the pedestals and light pools, like the reference floor. */}
+      <MeshReflectorMaterial map={floor} color="#fff0d8" roughness={.8} metalness={0} blur={[480, 160]} resolution={512} mixBlur={1} mixStrength={.22} mirror={.12} depthScale={.5} minDepthThreshold={.3} maxDepthThreshold={1.3} />
+    </mesh>
     <mesh position={[0, height, cz]}><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#f0e2d0" emissive="#b59a80" emissiveIntensity={.6} roughness={1} /></mesh>
     <mesh position={[0, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
     <mesh position={[0, height / 2, front + .1]}><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
@@ -208,26 +252,26 @@ function Architecture() {
       <mesh position={[side * (hw + .1), height / 2, cz]} receiveShadow><boxGeometry args={[.2, height, length]} />{wall}</mesh>
       <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#c68c54" roughness={.5} /></mesh>
       <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#d8cbbb" emissive="#6a5d4e" emissiveIntensity={.35} roughness={.9} /></mesh>
-      <mesh position={[side * (hw - .3), height - .21, cz]}><boxGeometry args={[.04, .06, length - .4]} /><meshStandardMaterial color="#fff6e6" emissive="#ffe6bf" emissiveIntensity={2.4} toneMapped={false} /></mesh>
-      {PEDESTAL_ROWS.map(z => <mesh key={`wash-${z}`} position={[side * (hw - .006), 1.95, z]} rotation={[0, -side * Math.PI / 2, 0]} raycast={() => null}><planeGeometry args={[2.7, 3.7]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>)}
+      {PEDESTAL_ROWS.map(z => <mesh key={`wash-${z}`} position={[side * (hw - .006), 1.55, z]} rotation={[0, -side * Math.PI / 2, 0]} raycast={() => null}><planeGeometry args={[3.2, 2.9]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>)}
     </group>)}
     <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#c68c54" roughness={.5} /></mesh>
-    <mesh position={[0, 3.1, front - .01]} rotation={[0, Math.PI, 0]}><planeGeometry args={[4.2, 1.63]} /><meshStandardMaterial map={sign} roughness={1} /></mesh>
-    <mesh position={[0, height - .12, HERO.position[2]]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[2.9, .045, 12, 96]} /><meshStandardMaterial color="#fff6e6" emissive="#ffe6bf" emissiveIntensity={1.3} toneMapped={false} /></mesh>
-    <mesh position={[0, .008, HERO.position[2]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}><planeGeometry args={[9, 9]} /><meshBasicMaterial map={heroWash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+    <group position={[0, 0, front - .01]} rotation={[0, Math.PI, 0]}>
+      <mesh position={[0, 3.25, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.82} alphaTest={.02} depthWrite={false} /></mesh>
+      <mesh position={[0, 2.14, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.76} alphaTest={.02} depthWrite={false} /></mesh>
+    </group>
     {[1, -1].flatMap(side => PEDESTAL_ROWS.map(z => <group key={`${side}-${z}`}>
-      <mesh position={[side * 3.1, height - .05, z]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#a8927a" roughness={.5} metalness={.4} /></mesh>
-      <Spot position={[side * 3.1, height - .3, z]} target={[side * 5.2, 2.3, z]} intensity={105} angle={.62} penumbra={1} />
+      <mesh position={[side * 3.1, height - .05, z]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
+      <Spot position={[side * 3.1, height - .3, z]} target={[side * 5.2, 1.8, z]} intensity={58} angle={.8} penumbra={1} />
     </group>))}
-    {[4, -4].map(z => <pointLight key={z} position={[0, height - .8, z]} intensity={9} distance={9} decay={2} color="#ffd9aa" />)}
+    {[4, -4].map(z => <pointLight key={z} position={[0, height - .8, z]} intensity={14} distance={10} decay={2} color="#ffdcb2" />)}
     {BACK_X.map(x => <group key={`back-${x}`}>
-      <mesh position={[x, height - .05, BACK_Z + 2.8]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#a8927a" roughness={.5} metalness={.4} /></mesh>
-      <Spot position={[x, height - .3, BACK_Z + 2.8]} target={[x, 2.3, BACK_Z]} intensity={105} angle={.62} penumbra={1} />
-      <mesh position={[x, 1.95, back + .006]} raycast={() => null}><planeGeometry args={[2.4, 3.7]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+      <mesh position={[x, height - .05, BACK_Z + 2.8]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
+      <Spot position={[x, height - .3, BACK_Z + 2.8]} target={[x, 1.8, BACK_Z]} intensity={58} angle={.8} penumbra={1} />
+      <mesh position={[x, 1.55, back + .006]} raycast={() => null}><planeGeometry args={[2.8, 2.9]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
     </group>)}
-    <mesh position={[0, height - .05, HERO.position[2] + 3.4]}><cylinderGeometry args={[.09, .12, .12, 20]} /><meshStandardMaterial color="#a8927a" roughness={.5} metalness={.4} /></mesh>
-    <Spot position={[0, height - .3, HERO.position[2] + 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={95} angle={.7} penumbra={1} />
-    <Spot position={[0, height - .3, HERO.position[2] - 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={45} angle={.7} penumbra={1} />
+    <mesh position={[0, height - .05, HERO.position[2] + 3.4]}><cylinderGeometry args={[.09, .12, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
+    <Spot position={[0, height - .3, HERO.position[2] + 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={40} angle={.75} penumbra={1} />
+    <Spot position={[0, height - .3, HERO.position[2] - 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={18} angle={.75} penumbra={1} />
     
   </group>;
 }
@@ -342,9 +386,9 @@ function SceneReady({ onReady }: { onReady: () => void }) { useEffect(() => { on
 
 export default function MuseumScene({ artworks, selection, roomKey, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
   useEffect(() => () => { document.body.style.cursor = ""; }, []);
-  return <Canvas dpr={[1, 1.5]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 58, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1 }} onCreated={({ gl }) => { gl.setClearColor("#9c7c62"); gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
+  return <Canvas dpr={[1, 1.5]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 58, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .9 }} onCreated={({ gl }) => { gl.setClearColor("#9c7c62"); gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
     <fog attach="fog" args={["#9c7c62", 14, 40]} />
-    <ambientLight intensity={.5} color="#ffd8b0" /><hemisphereLight args={["#ffe0bc", "#a07448", .42]} />
+    <ambientLight intensity={.46} color="#ffd8b0" /><hemisphereLight args={["#ffe2c2", "#8f6a48", .48]} />
     <Architecture /><CentralExhibit onSelect={onSelect} />
     {pedestalPositions.map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} onSelect={onSelect} onAdd={onAdd} />)}
     <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} /><SceneReady onReady={onReady} />

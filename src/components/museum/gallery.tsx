@@ -13,6 +13,18 @@ import { CENTRAL_ID, ROOM_SIZE } from "@/lib/museum-layout";
 const Scene = dynamic(() => import("./scene"), { ssr: false, loading: () => <LoadingScene /> });
 function LoadingScene() { return <div className="scene-loading" role="status"><Loader2 size={26} className="spin" /><p>Preparando los recuerdos…</p></div>; }
 class CanvasBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } componentDidCatch() { this.props.onFailure(); } render() { return this.state.failed ? null : this.props.children; } }
+// Film grain for a nostalgic, photographic finish: per-pixel noise drawn once into a tiling image.
+function FilmGrain() {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const size = 256, canvas = document.createElement("canvas"); canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const image = ctx.createImageData(size, size);
+    for (let i = 0; i < image.data.length; i += 4) { const v = Math.random() * 255; image.data[i] = image.data[i + 1] = image.data[i + 2] = v; image.data[i + 3] = 255; }
+    ctx.putImageData(image, 0, 0); setUrl(canvas.toDataURL("image/png"));
+  }, []);
+  return <div className="scene-grain" aria-hidden="true" style={url ? { backgroundImage: `url(${url})` } : undefined} />;
+}
 const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 function WalkButton({ label, input, axis, value, className, children }: { label: string; input: React.MutableRefObject<WalkInput>; axis: "move" | "turn"; value: number; className: string; children: ReactNode }) {
@@ -44,7 +56,7 @@ export default function Gallery() {
   const hasResults = matches.length > 0 || centralMatches;
   const cards = view === "cards" ? (needle ? matches : artworks) : [];
   return <div className="gallery-page"><main className="gallery-surface" aria-label="Museo interactivo">
-    {view === "3d" && <div className="scene-container" id="museum-scene" tabIndex={-1} aria-label="Sala tridimensional. Usa las flechas del teclado para caminar y girar."><CanvasBoundary onFailure={onFailure}><Scene artworks={visible} selection={selection} roomKey={currentRoom} reducedMotion={reducedMotion} input={input} hotspots={hotspotLayer} onSelect={setSelection} onAdd={() => router.push("/exhibir")} onFailure={onFailure} onReady={onReady} onFirstMove={onFirstMove} /></CanvasBoundary>{!ready && <LoadingScene />}<div className="scene-vignette" /><div className="scene-grain" aria-hidden="true" />{!focused && <div className="hotspot-layer" ref={hotspotLayer}>{visible.map((art, index) => <button key={art.id} type="button" className="hotspot" data-hotspot={`slot-${index}`} aria-label={`Ver historia de ${art.petName}: ${art.title}`} onClick={() => setSelection(art.id)}><span>i</span></button>)}{Array.from({ length: ROOM_SIZE - visible.length }, (_, k) => <Link key={`add-${k}`} href="/exhibir" className="hotspot hotspot-add" data-hotspot={`slot-${visible.length + k}`} aria-label="Exhibir tu obra en este pedestal"><Plus size={15} strokeWidth={2.6} /></Link>)}<button type="button" className="hotspot" data-hotspot={CENTRAL_ID} aria-label={`Ver información: ${campaign.centralInfo.title}`} onClick={() => setSelection(CENTRAL_ID)}><span>i</span></button></div>}</div>}
+    {view === "3d" && <div className="scene-container" id="museum-scene" tabIndex={-1} aria-label="Sala tridimensional. Usa las flechas del teclado para caminar y girar."><CanvasBoundary onFailure={onFailure}><Scene artworks={visible} selection={selection} roomKey={currentRoom} reducedMotion={reducedMotion} input={input} hotspots={hotspotLayer} onSelect={setSelection} onAdd={() => router.push("/exhibir")} onFailure={onFailure} onReady={onReady} onFirstMove={onFirstMove} /></CanvasBoundary>{!ready && <LoadingScene />}<div className="scene-vignette" /><FilmGrain />{!focused && <div className="hotspot-layer" ref={hotspotLayer}>{visible.map((art, index) => <button key={art.id} type="button" className="hotspot" data-hotspot={`slot-${index}`} aria-label={`Ver historia de ${art.petName}: ${art.title}`} onClick={() => setSelection(art.id)}><span>i</span></button>)}{Array.from({ length: ROOM_SIZE - visible.length }, (_, k) => <Link key={`add-${k}`} href="/exhibir" className="hotspot hotspot-add" data-hotspot={`slot-${visible.length + k}`} aria-label="Exhibir tu obra en este pedestal"><Plus size={15} strokeWidth={2.6} /></Link>)}<button type="button" className="hotspot" data-hotspot={CENTRAL_ID} aria-label={`Ver información: ${campaign.centralInfo.title}`} onClick={() => setSelection(CENTRAL_ID)}><span>i</span></button></div>}</div>}
     {!focused && <>
       <div className="gallery-toolbar">
         <Link className="round-button" href="/" aria-label="Volver al inicio"><House size={17} /></Link>
