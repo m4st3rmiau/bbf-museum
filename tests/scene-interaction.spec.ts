@@ -1,26 +1,51 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
-import { focusPose } from "../src/lib/museum-layout";
+import { START } from "../src/lib/museum-layout";
 
-test("clicking the actual 3D plaque and photo selects the correct detail through glass", async ({ page }) => {
+const hotspot = (page: Page, key: string) => page.locator(`[data-hotspot="${key}"]`).evaluate(el => (el as HTMLElement).style.transform);
+
+test("arrow keys walk and turn through the hall, wheel walks too", async ({ page }) => {
+  await page.goto("/galeria", { waitUntil: "networkidle" });
+  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByText("Camina con las flechas", { exact: false })).toBeVisible();
+  await page.waitForTimeout(800);
+  const start = await hotspot(page, "slot-0");
+  await page.keyboard.down("ArrowUp"); await page.waitForTimeout(900); await page.keyboard.up("ArrowUp");
+  await expect.poll(() => hotspot(page, "slot-0")).not.toBe(start);
+  await expect(page.getByText("Camina con las flechas", { exact: false })).toBeHidden();
+  const walked = await hotspot(page, "slot-0");
+  await page.keyboard.down("ArrowLeft"); await page.waitForTimeout(500); await page.keyboard.up("ArrowLeft");
+  await expect.poll(() => hotspot(page, "slot-0")).not.toBe(walked);
+  const turned = await hotspot(page, "slot-0");
+  await page.locator("canvas").hover(); await page.mouse.wheel(0, -400);
+  await expect.poll(() => hotspot(page, "slot-0")).not.toBe(turned);
+});
+
+test("clicking the actual 3D pedestal focuses it and its info panel opens", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/galeria?obra=demo-milo", { waitUntil: "networkidle" });
+  await page.goto("/galeria", { waitUntil: "networkidle" });
   const canvas = page.locator("canvas");
   await expect(canvas).toBeVisible();
-  await expect(page.getByRole("button", { name: "Leer su historia" })).toBeVisible();
   await expect.poll(async () => (await canvas.boundingBox())?.width).toBe(page.viewportSize()!.width);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Canvas missing");
-  const pose = focusPose(0, "pedestal", bounds.width / bounds.height);
-  const camera = new PerspectiveCamera(bounds.width < 700 ? 65 : 51, bounds.width / bounds.height, .1, 60);
-  camera.position.set(...pose.position); camera.lookAt(...pose.lookAt); camera.updateMatrixWorld();
-  const point = (position: [number, number, number]) => { const vector = new Vector3(...position).project(camera); return { x: (vector.x + 1) / 2 * bounds.width, y: (1 - vector.y) / 2 * bounds.height }; };
-  await page.screenshot({ path: test.info().outputPath("before-plaque.png") });
-  await canvas.click({ position: point([-4.709, 1.06, 2.8]) });
+  const camera = new PerspectiveCamera(bounds.width < 700 ? 70 : 58, bounds.width / bounds.height, .1, 90);
+  camera.position.set(START.x, 1.65, START.z); camera.rotation.order = "YXZ"; camera.rotation.set(START.pitch, START.yaw, 0); camera.updateMatrixWorld();
+  // Front face of the first pedestal (left wall, nearest the entrance), at plaque height near its top.
+  const vector = new Vector3(-4.83, 1.32, 2.1).project(camera);
+  await page.waitForTimeout(800);
+  await canvas.click({ position: { x: (vector.x + 1) / 2 * bounds.width, y: (1 - vector.y) / 2 * bounds.height } });
   await expect(page.getByRole("dialog")).toContainText("Una pelota, mil aventuras");
-  await expect(page.getByRole("dialog")).toContainText("Vista cercana de la placa.");
+  await page.screenshot({ path: test.info().outputPath("pedestal-focus.png") });
   await page.getByRole("button", { name: "Cerrar detalle" }).click();
-  await canvas.click({ position: point([-5.267, 2.41, 3.23]) });
-  await expect(page.getByRole("dialog")).toContainText("Vista cercana de la fotografía.");
-  await page.screenshot({ path: test.info().outputPath("photo-focus.png") });
+  await expect(page.getByLabel("Buscar por obra o mascota")).toBeVisible();
+});
+
+test("empty pedestals invite the visitor to exhibit their own work", async ({ page }) => {
+  await page.goto("/galeria", { waitUntil: "networkidle" });
+  await expect(page.locator("canvas")).toBeVisible();
+  const add = page.getByRole("link", { name: "Exhibir tu obra en este pedestal" });
+  await expect(add).toHaveCount(6);
+  await add.first().evaluate(el => (el as HTMLElement).click());
+  await expect(page).toHaveURL(/\/exhibir$/);
 });

@@ -1,50 +1,53 @@
-import type { FocusTarget } from "./types";
 export type Vec3 = [number, number, number];
-export const ROOM_SIZE = 8;
-export const pedestalPositions: { position: Vec3; rotation: number }[] = [
-  { position: [-5.4, 0, 2.8], rotation: Math.PI / 2 },
-  { position: [5.4, 0, 2.8], rotation: -Math.PI / 2 },
-  { position: [-5.4, 0, -.5], rotation: Math.PI / 2 },
-  { position: [5.4, 0, -.5], rotation: -Math.PI / 2 },
-  { position: [-5.4, 0, -3.8], rotation: Math.PI / 2 },
-  { position: [5.4, 0, -3.8], rotation: -Math.PI / 2 },
-  { position: [-2.7, 0, -5.5], rotation: 0 },
-  { position: [2.7, 0, -5.5], rotation: 0 },
-];
-// All waypoints follow the visitor aisle outside the central exhibit's radius.
-export const tourStops: { position: Vec3; lookAt: Vec3; label: string }[] = [
-  { position: [0, 3.3, 9.3], lookAt: [0, 1.3, -1.5], label: "La sala" },
-  { position: [-3.05, 2.3, 4.7], lookAt: [-5.4, 1.65, 1], label: "Ala izquierda" },
-  { position: [-3.05, 2.3, -1.4], lookAt: [-5.4, 1.65, -3.8], label: "Los recuerdos" },
-  { position: [0, 2.5, -4.1], lookAt: [0, 1.65, -.7], label: "La huella" },
-  { position: [3.05, 2.3, -1.4], lookAt: [5.4, 1.65, -3.8], label: "Las historias" },
-  { position: [3.05, 2.3, 4.7], lookAt: [5.4, 1.65, 1], label: "Ala derecha" },
-];
-export function focusPose(index: number, target: FocusTarget, aspect: number) {
-  const { position: [x, , z], rotation } = pedestalPositions[index];
-  const forward: Vec3 = [Math.sin(rotation), 0, Math.cos(rotation)];
-  const right: Vec3 = [Math.cos(rotation), 0, -Math.sin(rotation)];
-  const y = target === "plaque" ? 1.06 : target === "pedestal" ? 1.6 : 2.4;
-  const lateral = target === "pet" ? -.44 : target === "object" ? .44 : 0;
-  const offset = target === "plaque" ? .69 : .12;
-  const lookAt: Vec3 = [x + right[0] * lateral + forward[0] * offset, y, z + right[2] * lateral + forward[2] * offset];
-  const distance = target === "pedestal" ? 3.1 : target === "plaque" ? Math.min(2.7, Math.max(1.8, 1.2 / aspect)) : Math.min(2.7, Math.max(1.85, 1.1 / aspect));
-  const position: Vec3 = [lookAt[0] + forward[0] * distance, y + (target === "pedestal" ? .55 : .12), lookAt[2] + forward[2] * distance];
-  return { position, lookAt };
+export interface Pose { x: number; z: number; yaw: number; pitch: number }
+
+export const ROOM_SIZE = 12;
+export const CENTRAL_ID = "central";
+export const EYE_HEIGHT = 1.65;
+
+// Entrance at +z. The hero exhibit sits in the middle of the room and the four-per-wall pedestals flank it.
+export const HALL = { halfWidth: 5.9, front: 9, back: -9, height: 4.6 };
+export const PEDESTAL_X = 5.2;
+export const PEDESTAL_ROWS = [2.1, -.3, -2.7, -5.1];
+export const HERO = { position: [0, 0, -1.5] as Vec3, halfWidth: 1.75, halfDepth: 1.35 };
+export const WALK = { minX: -3.9, maxX: 3.9, minZ: -6.3, maxZ: 7.8 };
+export const START: Pose = { x: 0, z: 7.4, yaw: 0, pitch: -0.03 };
+
+// Keep the visitor outside the hero platform (plus a margin); pushes out along the shallowest axis.
+export function avoidHero(x: number, z: number, margin = .45): [number, number] {
+  const hx = HERO.halfWidth + margin, hz = HERO.halfDepth + margin, dz = z - HERO.position[2];
+  if (Math.abs(x) >= hx || Math.abs(dz) >= hz) return [x, z];
+  return hx - Math.abs(x) < hz - Math.abs(dz) ? [(x < 0 ? -1 : 1) * hx, z] : [x, HERO.position[2] + (dz < 0 ? -1 : 1) * hz];
 }
-// Route through safe front/side/rear aisles instead of crossing the center.
-export function aisleRoute(from: Vec3, to: Vec3): Vec3[] {
-  const segmentNearCenter = (a: Vec3, b: Vec3) => {
-    const ax = a[0], az = a[2] + .7, dx = b[0] - ax, dz = b[2] - a[2];
-    const t = Math.max(0, Math.min(1, -(ax * dx + az * dz) / (dx * dx + dz * dz || 1)));
-    return Math.hypot(ax + dx * t, az + dz * t) < 2.35;
-  };
-  if (!segmentNearCenter(from, to)) return [to];
-  const side = from[0] < -.4 ? -3.05 : from[0] > .4 ? 3.05 : to[0] < 0 ? -3.05 : 3.05;
-  const nearBack = from[2] < -2.7 && to[2] < 1;
-  const z = nearBack ? -4.1 : 4.7;
-  const route: Vec3[] = [[side, Math.max(from[1], 2.3), from[2]], [side, 2.5, z]];
-  if (Math.sign(to[0]) !== Math.sign(side) && Math.abs(to[0]) > .4) route.push([to[0] < 0 ? -3.05 : 3.05, 2.5, z]);
-  route.push([to[0], Math.max(to[1], 2.3), z], to);
-  return route;
+// Straight path unless it would cross the hero platform; then detour along the nearer side aisle.
+export function walkPath(from: Pose, to: Pose): [number, number][] {
+  const crosses = Array.from({ length: 25 }, (_, i) => i / 24).some(t => { const x = from.x + (to.x - from.x) * t, z = from.z + (to.z - from.z) * t; return Math.abs(x) < HERO.halfWidth + .6 && Math.abs(z - HERO.position[2]) < HERO.halfDepth + .6; });
+  if (!crosses) return [[from.x, from.z], [to.x, to.z]];
+  const side = (from.x || to.x) < 0 ? -1 : 1, lane = side * 3.1;
+  return [[from.x, from.z], [lane, from.z], [lane, to.z], [to.x, to.z]];
+}
+
+export const BACK_X = [-2.7, -.9, .9, 2.7];
+export const BACK_Z = HALL.back + 1.1;
+// Slots 0-7: left/right walls alternating, front to back. Slots 8-11: the back wall, facing the entrance.
+export const pedestalPositions: { position: Vec3; rotation: number }[] = Array.from({ length: ROOM_SIZE }, (_, i) => {
+  if (i >= 8) return { position: [BACK_X[i - 8], 0, BACK_Z], rotation: 0 };
+  const side = i % 2 === 0 ? -1 : 1;
+  return { position: [side * PEDESTAL_X, 0, PEDESTAL_ROWS[Math.floor(i / 2)]], rotation: side < 0 ? Math.PI / 2 : -Math.PI / 2 };
+});
+
+function poseLooking(x: number, z: number, target: Vec3): Pose {
+  const dx = target[0] - x, dz = target[2] - z;
+  return { x, z, yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(target[1] - EYE_HEIGHT, Math.hypot(dx, dz)) };
+}
+export function focusPose(index: number): Pose {
+  const { position: [x, , z], rotation } = pedestalPositions[index];
+  return poseLooking(x + Math.sin(rotation) * 2.5, z + Math.cos(rotation) * 2.5, [x, 1.5, z]);
+}
+export function heroPose(): Pose { return poseLooking(0, HERO.position[2] + 5.6, [0, 1.5, HERO.position[2]]); }
+// World position of an info button: "central" or "slot-<pedestal index>".
+export function hotspotPosition(key: string): Vec3 | null {
+  if (key === CENTRAL_ID) return [HERO.position[0], 3.3, HERO.position[2]];
+  const slot = pedestalPositions[Number(key.replace("slot-", ""))];
+  return slot ? [slot.position[0], 2.7, slot.position[2]] : null;
 }

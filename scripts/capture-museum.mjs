@@ -12,7 +12,7 @@ try {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(4000);
   await page.screenshot({ path: '/tmp/bbf-gallery.png' });
-  const hidden = await page.addStyleTag({ content: '.gallery-toolbar, .gallery-heading, .gallery-bottom, .gallery-hint, .gallery-notice { visibility: hidden !important; }' });
+  const hidden = await page.addStyleTag({ content: '.gallery-toolbar, .walk-controls, .room-strip, .hotspot-layer, .gallery-hint, .gallery-notice { visibility: hidden !important; }' });
   await page.locator('canvas').screenshot({ path: 'public/images/museum.jpg', type: 'jpeg', quality: 92 });
   await hidden.evaluate(element => element.remove());
   await page.goto(baseURL, { waitUntil: 'networkidle' });
