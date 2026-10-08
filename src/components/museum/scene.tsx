@@ -123,12 +123,12 @@ function papelPicado(lines: PlaqueLine[], width: number, height: number) {
     }
   });
 }
-function Plaque({ lines, position, size, pixels }: { lines: PlaqueLine[]; position: Vec3; size: [number, number]; pixels: [number, number] }) {
+function Plaque({ lines, position, size, pixels, focused = false }: { lines: PlaqueLine[]; position: Vec3; size: [number, number]; pixels: [number, number]; focused?: boolean }) {
   const fonts = useFontsReady();
   const texture = useMemo(() => papelPicado(lines, ...pixels), [lines, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => texture.dispose(), [texture]);
   // A little self-illumination keeps the lettering readable where the spotlight falls off.
-  return <mesh position={position}><planeGeometry args={size} /><meshStandardMaterial map={texture} emissiveMap={texture} emissive="#ffffff" emissiveIntensity={.18} transparent alphaTest={.04} roughness={.85} /></mesh>;
+  return <mesh position={position}><planeGeometry args={size} /><meshStandardMaterial map={texture} emissiveMap={texture} emissive="#ffffff" emissiveIntensity={focused ? .4 : .2} transparent alphaTest={.04} roughness={.85} /></mesh>;
 }
 // Soft vertical falloff (top → bottom) multiplied into a surface's colour: a cheap stand-in for bounce light and contact shadow.
 const gradients = new Map<string, THREE.CanvasTexture>();
@@ -137,8 +137,8 @@ function verticalGradient(stops: [number, string][]) {
   if (!texture) { texture = canvasTexture(4, 256, ctx => { const g = ctx.createLinearGradient(0, 0, 0, 256); stops.forEach(([at, color]) => g.addColorStop(at, color)); ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256); }); gradients.set(key, texture); }
   return texture;
 }
-const PLINTH_SHADE: [number, string][] = [[0, "#ffffff"], [.45, "#f4ede4"], [.88, "#d8cbb9"], [1, "#b7a58f"]];
-const WALL_SHADE: [number, string][] = [[0, "#b8a28c"], [.22, "#ece0d2"], [.55, "#ffffff"], [.93, "#f1e7da"], [1, "#b9a189"]];
+const PLINTH_SHADE: [number, string][] = [[0, "#ffffff"], [.5, "#f2efe9"], [.9, "#d9d3c9"], [1, "#bdb4a8"]];
+const WALL_SHADE: [number, string][] = [[0, "#aaa095"], [.16, "#d6cec4"], [.52, "#ebe5dc"], [.9, "#d3cbc1"], [1, "#9e9489"]];
 
 // A small cempasúchil (marigold): orange petal clusters on a short stem, a Día de Muertos touch beside the frames.
 function Cempasuchil({ position }: { position: Vec3 }) {
@@ -157,14 +157,14 @@ function Vitrine() {
   for (const sy of [-1, 1]) for (const sz of [-1, 1]) edges.push([[0, cy + sy * h / 2, sz * d / 2], [w, e, e]]);
   for (const sy of [-1, 1]) for (const sx of [-1, 1]) edges.push([[sx * w / 2, cy + sy * h / 2, 0], [e, e, d]]);
   return <group>
-    <mesh position={[0, cy, 0]} renderOrder={2}><boxGeometry args={[w, h, d]} /><meshPhysicalMaterial color="#d9d3c7" transparent opacity={.2} roughness={.2} metalness={0} depthWrite={false} side={THREE.DoubleSide} /></mesh>
-    {edges.map(([position, size], i) => <mesh key={i} position={position} raycast={() => null}><boxGeometry args={size} /><meshBasicMaterial color="#ffffff" transparent opacity={.3} depthWrite={false} /></mesh>)}
+    <mesh position={[0, cy, 0]} renderOrder={2}><boxGeometry args={[w, h, d]} /><meshPhysicalMaterial color="#e8f0f1" transparent opacity={.13} roughness={.12} metalness={0} depthWrite={false} side={THREE.DoubleSide} /></mesh>
+    {edges.map(([position, size], i) => <mesh key={i} position={position} raycast={() => null}><boxGeometry args={size} /><meshBasicMaterial color="#f6f8f7" transparent opacity={.2} depthWrite={false} /></mesh>)}
   </group>;
 }
 function Plinth({ children }: { children?: ReactNode }) {
   return <>
-    <mesh position={[0, .05, 0]} castShadow receiveShadow><boxGeometry args={[.82, .1, .8]} /><meshStandardMaterial color="#c68c54" roughness={.55} /></mesh>
-    <mesh position={[0, .75, 0]} castShadow receiveShadow><boxGeometry args={[.64, 1.3, .62]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#efe3d2" roughness={.95} /></mesh>
+    <mesh position={[0, .05, 0]} castShadow receiveShadow><boxGeometry args={[.82, .1, .8]} /><meshStandardMaterial color="#9d7651" roughness={.78} /></mesh>
+    <mesh position={[0, .75, 0]} castShadow receiveShadow><boxGeometry args={[.64, 1.3, .62]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#f1eee8" roughness={1} /></mesh>
     {children}
     <Vitrine />
   </>;
@@ -173,7 +173,7 @@ function Plinth({ children }: { children?: ReactNode }) {
 // The plaque's third line: the story's first sentence when it is short, otherwise a gentle default.
 function plaqueNote(description: string) { const first = description.split(/(?<=[.!?…])\s/)[0]?.trim() ?? ""; return first && first.length <= 52 ? first : "Un amor que permanece."; }
 
-function Pedestal({ artwork, index, onSelect, onAdd }: { artwork: Artwork | null; index: number; onSelect: (id: string) => void; onAdd: () => void }) {
+function Pedestal({ artwork, index, selected, onSelect, onAdd }: { artwork: Artwork | null; index: number; selected: boolean; onSelect: (id: string) => void; onAdd: () => void }) {
   const { position, rotation } = pedestalPositions[index]; const open = () => (artwork ? onSelect(artwork.id) : onAdd());
   const lines = useMemo(() => artwork
     ? [{ text: artwork.title, size: 98, weight: 600 }, { text: `${artwork.petName}, ${artwork.age} años.`, size: 70, weight: 600 }, { text: plaqueNote(artwork.description), size: 50, weight: 400, italic: true, color: "#dfe5f7" }]
@@ -181,7 +181,7 @@ function Pedestal({ artwork, index, onSelect, onAdd }: { artwork: Artwork | null
   return <group position={position} rotation={[0, rotation, 0]} scale={1.15}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[1.9, 1.8]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
     <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
-      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[1024, 872]} /></Plinth>
+      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[1024, 872]} focused={selected} /></Plinth>
       {artwork && <>
         <SceneBoundary fallback={<PhotoFallback {...PET_FRAME} />} key={`pet-${artwork.id}`}><Suspense fallback={<PhotoFallback {...PET_FRAME} />}><Photo url={artwork.petImage} {...PET_FRAME} /></Suspense></SceneBoundary>
         <Cempasuchil position={[-.235, 1.4, .19]} />
@@ -196,8 +196,8 @@ function shadowBlob() { return blob ??= radial([[0, "rgba(25,12,2,.62)"], [.35, 
 
 function PlaceholderFigure() {
   return <group position={[0, 1.55, 0]} rotation={[0, -.4, .15]}>
-    <mesh castShadow><torusKnotGeometry args={[.62, .2, 160, 24, 2, 3]} /><meshStandardMaterial color="#cdb28a" metalness={.05} roughness={.75} /></mesh>
-    <mesh position={[0, -.72, 0]} castShadow><cylinderGeometry args={[.15, .22, .5, 32]} /><meshStandardMaterial color="#c2a984" metalness={.05} roughness={.8} /></mesh>
+    <mesh castShadow receiveShadow><torusKnotGeometry args={[.62, .2, 160, 24, 2, 3]} /><meshStandardMaterial color="#b9ad9b" metalness={0} roughness={.9} /></mesh>
+    <mesh position={[0, -.72, 0]} castShadow receiveShadow><cylinderGeometry args={[.15, .22, .5, 32]} /><meshStandardMaterial color="#afa392" metalness={0} roughness={.94} /></mesh>
   </group>;
 }
 function LoadedFigure() {
@@ -207,71 +207,65 @@ function LoadedFigure() {
 }
 const ModelLoading = PlaceholderFigure, ModelFailed = PlaceholderFigure;
 
-function CentralExhibit({ onSelect }: { onSelect: (id: string) => void }) {
+function CentralExhibit({ selected, onSelect }: { selected: boolean; onSelect: (id: string) => void }) {
   const lines = useMemo(() => [{ text: "El amor deja huellas", size: 78 }, { text: "Un vínculo que permanece", size: 46, color: "#d6dcf2" }], []);
   const open = () => onSelect(CENTRAL_ID);
   return <group position={HERO.position}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[5.4, 4.6]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
     <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
-      <mesh position={[0, .06, 0]} castShadow receiveShadow><boxGeometry args={[3.5, .12, 2.7]} /><meshStandardMaterial color="#c68c54" roughness={.55} /></mesh>
-      <mesh position={[0, .37, 0]} castShadow receiveShadow><boxGeometry args={[3.3, .5, 2.5]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#e2d5c1" roughness={.95} /></mesh>
-      <mesh position={[0, .625, 0]} receiveShadow><boxGeometry args={[3.36, .02, 2.56]} /><meshStandardMaterial color="#ebe0cd" roughness={.95} /></mesh>
-      <Plaque lines={lines} position={[0, .34, 1.256]} size={[1.5, .44]} pixels={[1200, 352]} />
+      <mesh position={[0, .06, 0]} castShadow receiveShadow><boxGeometry args={[3.5, .12, 2.7]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
+      <mesh position={[0, .37, 0]} castShadow receiveShadow><boxGeometry args={[3.3, .5, 2.5]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#ebe7df" roughness={1} /></mesh>
+      <mesh position={[0, .625, 0]} receiveShadow><boxGeometry args={[3.36, .02, 2.56]} /><meshStandardMaterial color="#f1eee7" roughness={1} /></mesh>
+      <Plaque lines={lines} position={[0, .34, 1.256]} size={[1.5, .44]} pixels={[1200, 352]} focused={selected} />
       {campaign.centralModel.url ? <SceneBoundary fallback={<ModelFailed />}><Suspense fallback={<ModelLoading />}><LoadedFigure /></Suspense></SceneBoundary> : <PlaceholderFigure />}
     </group>
     
   </group>;
 }
 
-function Spot({ position, target, intensity = 70, angle = .5, penumbra = .8, color = "#ffd9a8" }: { position: Vec3; target: Vec3; intensity?: number; angle?: number; penumbra?: number; color?: string }) {
+function Spot({ position, target, intensity = 46, angle = .54, penumbra = .9, color = "#ffe4c2", shadows = false }: { position: Vec3; target: Vec3; intensity?: number; angle?: number; penumbra?: number; color?: string; shadows?: boolean }) {
   const aim = useMemo(() => new THREE.Object3D(), []);
   useEffect(() => { aim.position.set(...target); aim.updateMatrixWorld(); }, [aim, target]);
-  return <><primitive object={aim} /><spotLight position={position} target={aim} intensity={intensity} angle={angle} penumbra={penumbra} decay={2} color={color} /></>;
+  return <><primitive object={aim} /><spotLight position={position} target={aim} intensity={intensity} angle={angle} penumbra={penumbra} decay={2} color={color} castShadow={shadows} shadow-mapSize-width={512} shadow-mapSize-height={512} shadow-bias={-.00035} shadow-normalBias={.025} shadow-radius={4} shadow-camera-near={.3} shadow-camera-far={12} /></>;
 }
 
 function Architecture() {
   const fonts = useFontsReady();
   const floor = useMemo(woodTexture, []);
-  const wash = useMemo(() => radial([[0, "rgba(255,206,160,.34)"], [.25, "rgba(255,200,148,.26)"], [.5, "rgba(255,192,135,.14)"], [.75, "rgba(255,186,124,.05)"], [1, "rgba(255,180,115,0)"]], 512, 1), []);
   const logoSource = useTexture("/home/Grupo%202.svg");
   const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#ead8bd"), [logoSource]);
   const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#dfc9aa"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { floor.dispose(); wash.dispose(); }, [floor, wash]);
+  useEffect(() => () => floor.dispose(), [floor]);
   useEffect(() => () => { sign.dispose(); tagline.dispose(); }, [sign, tagline]);
   const { halfWidth: hw, front, back, height } = HALL; const length = front - back, cz = (front + back) / 2;
-  const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#e6cdb4" emissive="#5a3f2a" emissiveIntensity={.14} roughness={1} />;
+  const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#e6dfd5" roughness={1} metalness={0} />;
   return <group>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cz]} receiveShadow><planeGeometry args={[hw * 2, length]} />
       {/* Satin wood: a faint, heavily blurred reflection of the pedestals and light pools, like the reference floor. */}
-      <MeshReflectorMaterial map={floor} color="#fff0d8" roughness={.8} metalness={0} blur={[480, 160]} resolution={512} mixBlur={1} mixStrength={.22} mirror={.12} depthScale={.5} minDepthThreshold={.3} maxDepthThreshold={1.3} />
+      <MeshReflectorMaterial map={floor} color="#fff0d8" roughness={.82} metalness={0} blur={[480, 180]} resolution={384} mixBlur={1} mixStrength={.17} mirror={.08} depthScale={.42} minDepthThreshold={.3} maxDepthThreshold={1.3} />
     </mesh>
-    <mesh position={[0, height, cz]}><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#f0e2d0" emissive="#b59a80" emissiveIntensity={.6} roughness={1} /></mesh>
+    <mesh position={[0, height, cz]} receiveShadow><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#e8e2da" roughness={1} /></mesh>
     <mesh position={[0, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
     <mesh position={[0, height / 2, front + .1]}><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
     {[-1, 1].map(side => <group key={side}>
       <mesh position={[side * (hw + .1), height / 2, cz]} receiveShadow><boxGeometry args={[.2, height, length]} />{wall}</mesh>
-      <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#c68c54" roughness={.5} /></mesh>
-      <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#d8cbbb" emissive="#6a5d4e" emissiveIntensity={.35} roughness={.9} /></mesh>
-      {PEDESTAL_ROWS.map(z => <mesh key={`wash-${z}`} position={[side * (hw - .006), 1.55, z]} rotation={[0, -side * Math.PI / 2, 0]} raycast={() => null}><planeGeometry args={[3.2, 2.9]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>)}
+      <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
+      <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#d2cbc2" roughness={1} /></mesh>
     </group>)}
-    <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#c68c54" roughness={.5} /></mesh>
+    <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
     <group position={[0, 0, front - .01]} rotation={[0, Math.PI, 0]}>
-      <mesh position={[0, 3.25, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.82} alphaTest={.02} depthWrite={false} /></mesh>
-      <mesh position={[0, 2.14, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.76} alphaTest={.02} depthWrite={false} /></mesh>
+      <mesh position={[0, 3.85, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.76} alphaTest={.02} depthWrite={false} /></mesh>
+      <mesh position={[0, 2.72, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.68} alphaTest={.02} depthWrite={false} /></mesh>
     </group>
     {[1, -1].flatMap(side => PEDESTAL_ROWS.map(z => <group key={`${side}-${z}`}>
-      <mesh position={[side * 3.1, height - .05, z]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
-      <Spot position={[side * 3.1, height - .3, z]} target={[side * 5.2, 1.8, z]} intensity={58} angle={.8} penumbra={1} />
+      <Spot position={[side * 4.05, height - .24, z + .18]} target={[side * 5.2, 1.7, z]} intensity={42 + ((Math.abs(z) * 7) % 5)} angle={.52} penumbra={.94} />
     </group>))}
-    {[4, -4].map(z => <pointLight key={z} position={[0, height - .8, z]} intensity={14} distance={10} decay={2} color="#ffdcb2" />)}
     {BACK_X.map(x => <group key={`back-${x}`}>
-      <mesh position={[x, height - .05, BACK_Z + 2.8]}><cylinderGeometry args={[.07, .1, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
-      <Spot position={[x, height - .3, BACK_Z + 2.8]} target={[x, 1.8, BACK_Z]} intensity={58} angle={.8} penumbra={1} />
-      <mesh position={[x, 1.55, back + .006]} raycast={() => null}><planeGeometry args={[2.8, 2.9]} /><meshBasicMaterial map={wash} transparent depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+      <Spot position={[x, height - .24, BACK_Z + 2.15]} target={[x, 1.7, BACK_Z]} intensity={40 + (Math.abs(x) % 2) * 2} angle={.5} penumbra={.94} />
     </group>)}
-    <mesh position={[0, height - .05, HERO.position[2] + 3.4]}><cylinderGeometry args={[.09, .12, .12, 20]} /><meshStandardMaterial color="#cdbba5" roughness={.7} metalness={.1} /></mesh>
-    <Spot position={[0, height - .3, HERO.position[2] + 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={40} angle={.75} penumbra={1} />
-    <Spot position={[0, height - .3, HERO.position[2] - 3.4]} target={[0, 1.4, HERO.position[2]]} intensity={18} angle={.75} penumbra={1} />
+    <Spot position={[-1.65, height - .28, HERO.position[2] + 2.7]} target={[0, 1.35, HERO.position[2]]} intensity={52} angle={.62} penumbra={.92} shadows />
+    <Spot position={[1.45, height - .28, HERO.position[2] - 2.4]} target={[0, 1.45, HERO.position[2]]} intensity={30} angle={.58} penumbra={.94} />
+    <Spot position={[0, height - .3, front - 2.5]} target={[0, 3.25, front - .08]} intensity={20} angle={.64} penumbra={.96} shadows={false} />
     
   </group>;
 }
@@ -386,11 +380,14 @@ function SceneReady({ onReady }: { onReady: () => void }) { useEffect(() => { on
 
 export default function MuseumScene({ artworks, selection, roomKey, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
   useEffect(() => () => { document.body.style.cursor = ""; }, []);
-  return <Canvas dpr={[1, 1.5]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 58, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: .9 }} onCreated={({ gl }) => { gl.setClearColor("#9c7c62"); gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
-    <fog attach="fog" args={["#9c7c62", 14, 40]} />
-    <ambientLight intensity={.46} color="#ffd8b0" /><hemisphereLight args={["#ffe2c2", "#8f6a48", .48]} />
-    <Architecture /><CentralExhibit onSelect={onSelect} />
-    {pedestalPositions.map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} onSelect={onSelect} onAdd={onAdd} />)}
+  // Unmounting the Canvas (e.g. switching to the card view) makes three.js force a context loss; only a loss while mounted is a real failure.
+  const detachLoss = useRef<(() => void) | null>(null);
+  useEffect(() => () => { detachLoss.current?.(); detachLoss.current = null; }, []);
+  return <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 1.25]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 56, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1, outputColorSpace: THREE.SRGBColorSpace }} onCreated={({ gl }) => { gl.setClearColor("#aaa197"); gl.shadowMap.enabled = true; gl.shadowMap.type = THREE.PCFSoftShadowMap; gl.outputColorSpace = THREE.SRGBColorSpace; const canvas = gl.domElement; detachLoss.current?.(); canvas.addEventListener("webglcontextlost", onFailure, { once: true }); detachLoss.current = () => canvas.removeEventListener("webglcontextlost", onFailure); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
+    <fog attach="fog" args={["#aaa197", 18, 42]} />
+    <ambientLight intensity={.28} color="#ffead2" /><hemisphereLight args={["#fff1df", "#866b52", .34]} />
+    <Architecture /><CentralExhibit selected={selection === CENTRAL_ID} onSelect={onSelect} />
+    {pedestalPositions.map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} selected={!!artworks[index] && selection === artworks[index].id} onSelect={onSelect} onAdd={onAdd} />)}
     <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} /><SceneReady onReady={onReady} />
   </Canvas>;
 }

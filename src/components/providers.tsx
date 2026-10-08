@@ -3,7 +3,7 @@ import { createContext, useContext, useState, type ReactNode, type Dispatch, typ
 import type { ArtworkDraft } from "@/lib/types";
 import type { ContactFields } from "@/lib/validation";
 const emptyDraft: ArtworkDraft = { petName: "", age: "", title: "", description: "", petImage: null, objectImage: null };
-const emptyContact: ContactFields = { name: "", email: "", phone: "", interest: "gallery" };
+const emptyContact: ContactFields = { name: "", email: "", phone: "", interest: "" };
 interface DraftContextType { draft: ArtworkDraft; setDraft: Dispatch<SetStateAction<ArtworkDraft>>; contact: ContactFields; setContact: Dispatch<SetStateAction<ContactFields>>; clear: () => void }
 const DraftContext = createContext<DraftContextType | null>(null);
 export function Providers({ children }: { children: ReactNode }) {

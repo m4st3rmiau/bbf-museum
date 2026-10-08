@@ -7,9 +7,9 @@ export const artworkSchema = z.object({
 });
 export const contactSchema = z.object({
   name: z.string().trim().min(1, "Escribe tu nombre.").max(100),
-  email: z.email("Escribe un correo electrónico válido."),
-  phone: z.string().refine(value => !value || /^[+\d\s()-]{7,25}$/.test(value), "Revisa el número de teléfono."),
-  interest: z.enum(["yes", "later", "gallery"], { error: "Selecciona una opción." }),
+  email: z.string().trim().min(1, "Escribe tu correo electrónico.").email("Escribe un correo electrónico válido."),
+  phone: z.string().trim().min(1, "Escribe tu teléfono.").refine(value => /^[+\d\s()-]+$/.test(value) && /^\d{10,15}$/.test(value.replace(/\D/g, "")), "Escribe un teléfono válido de 10 a 15 dígitos."),
+  interest: z.enum(["", "yes", "later", "gallery"]).superRefine((value, ctx) => { if (!value) ctx.addIssue({ code: "custom", message: "Selecciona una opción." }); }),
 });
 export type ArtworkFields = z.infer<typeof artworkSchema>;
 export type ContactFields = z.infer<typeof contactSchema>;

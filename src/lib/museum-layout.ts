@@ -6,7 +6,7 @@ export const CENTRAL_ID = "central";
 export const EYE_HEIGHT = 1.65;
 
 // Entrance at +z. The hero exhibit sits in the middle of the room and the four-per-wall pedestals flank it.
-export const HALL = { halfWidth: 5.9, front: 9, back: -9, height: 4.6 };
+export const HALL = { halfWidth: 5.9, front: 9, back: -9, height: 5.9 };
 export const PEDESTAL_X = 5.2;
 export const PEDESTAL_ROWS = [2.1, -.3, -2.7, -5.1];
 export const HERO = { position: [0, 0, -1.5] as Vec3, halfWidth: 1.75, halfDepth: 1.35 };

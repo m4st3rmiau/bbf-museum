@@ -1,2 +1,2 @@
-import { Header, Footer, LocalNotice } from "@/components/site-chrome";
-export default function ExhibitLayout({ children }: { children: React.ReactNode }) { return <div className="form-page"><Header /><main>{children}</main><div className="local-line"><LocalNotice /></div><Footer /></div>; }
+import { CampaignHeader } from "@/components/site-chrome";
+export default function ExhibitLayout({ children }: { children: React.ReactNode }) { return <div className="campaign-page form-page"><img className="campaign-background" src="/home/BBF%20Web%20BG@2x.png" alt="" aria-hidden="true" /><img className="campaign-petals campaign-petals-left" src="/home/Petalos%20izquierda.png" alt="" aria-hidden="true" /><img className="campaign-petals campaign-petals-right" src="/home/Petalo%20Derecha.png" alt="" aria-hidden="true" /><CampaignHeader /><main><img className="form-brandmark" src="/home/Grupo%202.svg" alt="Galería de los recuerdos" />{children}</main></div>; }
