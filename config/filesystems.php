@@ -1,5 +1,27 @@
 <?php
 
+$publicDisk = env('PUBLIC_FILESYSTEM_DRIVER', 'local') === 's3'
+    ? [
+        'driver' => 's3',
+        'key' => env('PUBLIC_AWS_ACCESS_KEY_ID'),
+        'secret' => env('PUBLIC_AWS_SECRET_ACCESS_KEY'),
+        'region' => env('PUBLIC_AWS_DEFAULT_REGION', 'auto'),
+        'bucket' => env('PUBLIC_AWS_BUCKET'),
+        'url' => env('PUBLIC_AWS_URL'),
+        'endpoint' => env('PUBLIC_AWS_ENDPOINT'),
+        'use_path_style_endpoint' => env('PUBLIC_AWS_USE_PATH_STYLE_ENDPOINT', false),
+        'throw' => true,
+        'report' => true,
+    ]
+    : [
+        'driver' => 'local',
+        'root' => storage_path('app/public'),
+        'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+        'visibility' => 'public',
+        'throw' => false,
+        'report' => false,
+    ];
+
 return [
 
     /*
@@ -38,14 +60,7 @@ return [
             'report' => false,
         ],
 
-        'public' => [
-            'driver' => 'local',
-            'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
-            'visibility' => 'public',
-            'throw' => false,
-            'report' => false,
-        ],
+        'public' => $publicDisk,
 
         's3' => [
             'driver' => 's3',
