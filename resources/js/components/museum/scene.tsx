@@ -47,18 +47,24 @@ function centeredTextTexture(text: string, color: string, width = 1600, height =
     ctx.fillText(text, width / 2, height / 2, width - 40);
   });
 }
-function woodTexture() {
+function polishedStoneTexture() {
   const texture = canvasTexture(1024, 1024, ctx => {
-    const tones = ["#cc9d63", "#d4a76c", "#c5955b", "#cfa166", "#d1a469", "#c89960"]; const planks = 6, w = 1024 / planks;
-    let seed = 7; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < planks; i++) {
-      ctx.fillStyle = tones[Math.floor(rand() * tones.length)]; ctx.fillRect(i * w, 0, w, 1024);
-      for (let g = 0; g < 38; g++) { ctx.strokeStyle = `rgba(${rand() > .5 ? "90,50,18" : "225,165,95"},${.03 + rand() * .05})`; ctx.lineWidth = .6 + rand() * 1.6; const x = i * w + rand() * w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.bezierCurveTo(x + (rand() - .5) * 14, 340, x + (rand() - .5) * 14, 680, x + (rand() - .5) * 10, 1024); ctx.stroke(); }
-      for (const y of [rand() * 1024]) { ctx.fillStyle = "rgba(60,32,12,.3)"; ctx.fillRect(i * w, y, w, 2); const shade = ctx.createLinearGradient(0, y, 0, y + 90); shade.addColorStop(0, `rgba(${rand() > .5 ? "255,225,170" : "70,38,14"},.07)`); shade.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = shade; ctx.fillRect(i * w, y, w, 90); }
-      ctx.fillStyle = "rgba(55,30,10,.32)"; ctx.fillRect(i * w, 0, 2, 1024);
+    let seed = 19; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    ctx.fillStyle = "#dfe3e2"; ctx.fillRect(0, 0, 1024, 1024);
+    // Broad, low-contrast mineral clouds keep the large porcelain slabs from reading as a flat colour.
+    for (let i = 0; i < 34; i++) {
+      const x = rand() * 1024, y = rand() * 1024, radius = 90 + rand() * 250;
+      const cloud = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      const pale = rand() > .45;
+      cloud.addColorStop(0, pale ? `rgba(255,255,255,${.025 + rand() * .05})` : `rgba(116,128,127,${.012 + rand() * .022})`);
+      cloud.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = cloud; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     }
+    // Hairline grout and a soft bevel define a large-format polished tile without competing with the mural.
+    ctx.fillStyle = "rgba(126,137,136,.28)"; ctx.fillRect(0, 0, 4, 1024); ctx.fillRect(0, 0, 1024, 4);
+    ctx.fillStyle = "rgba(255,255,255,.42)"; ctx.fillRect(4, 4, 3, 1017); ctx.fillRect(4, 4, 1017, 3);
   });
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(HALL.halfWidth * 2 / 1.8, (HALL.front - HALL.back) / 4); return texture;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(HALL.halfWidth * 2 / 3.2, (HALL.front - HALL.back) / 3.2); return texture;
 }
 const radial = (stops: [number, string][], size = 512, cy = .5) => canvasTexture(size, size, ctx => { const g = ctx.createRadialGradient(size / 2, size * cy, 0, size / 2, size * cy, size / 2); stops.forEach(([at, color]) => g.addColorStop(at, color)); ctx.fillStyle = g; ctx.fillRect(0, 0, size, size); });
 
@@ -141,7 +147,7 @@ function verticalGradient(stops: [number, string][]) {
   return texture;
 }
 const PLINTH_SHADE: [number, string][] = [[0, "#ffffff"], [.5, "#f2efe9"], [.9, "#d9d3c9"], [1, "#bdb4a8"]];
-const WALL_SHADE: [number, string][] = [[0, "#aaa095"], [.16, "#d6cec4"], [.52, "#ebe5dc"], [.9, "#d3cbc1"], [1, "#9e9489"]];
+const WALL_SHADE: [number, string][] = [[0, "#dededb"], [.16, "#f5f5f2"], [.52, "#ffffff"], [.9, "#f4f4f1"], [1, "#d8d8d4"]];
 
 // A small cempasúchil (marigold): orange petal clusters on a short stem, a Día de Muertos touch beside the frames.
 function Cempasuchil({ position }: { position: Vec3 }) {
@@ -251,9 +257,27 @@ function Spot({ position, target, intensity = 46, angle = .54, penumbra = .9, co
   return <><primitive object={aim} /><spotLight position={position} target={aim} intensity={intensity} angle={angle} penumbra={penumbra} decay={2} color={color} castShadow={shadows} shadow-mapSize-width={512} shadow-mapSize-height={512} shadow-bias={-.00035} shadow-normalBias={.025} shadow-radius={4} shadow-camera-near={.3} shadow-camera-far={12} /></>;
 }
 
+function CeilingFixture({ position, glow }: { position: Vec3; glow: THREE.Texture }) {
+  return <group position={position}>
+    <mesh position={[0, -.016, 0]} raycast={() => null}>
+      <cylinderGeometry args={[.19, .19, .032, 32]} />
+      <meshStandardMaterial color="#e8eae7" roughness={.38} metalness={.08} />
+    </mesh>
+    <mesh position={[0, -.033, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={2}>
+      <circleGeometry args={[.145, 32]} />
+      <meshBasicMaterial color="#fff3d7" toneMapped={false} />
+    </mesh>
+    <mesh position={[0, -.038, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={1}>
+      <circleGeometry args={[.38, 32]} />
+      <meshBasicMaterial map={glow} color="#fff1cd" transparent opacity={.42} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+  </group>;
+}
+
 function Architecture() {
   const fonts = useFontsReady();
-  const floor = useMemo(woodTexture, []);
+  const floor = useMemo(polishedStoneTexture, []);
+  const ceilingGlow = useMemo(() => radial([[0, "rgba(255,246,220,.75)"], [.34, "rgba(255,241,204,.24)"], [1, "rgba(255,241,204,0)"]]), []);
   const logoSource = useTexture("/home/Grupo%202.svg");
   const muralSource = useTexture("/images/mural-bbf-galeria.webp");
   const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#003568"), [logoSource]);
@@ -272,32 +296,33 @@ function Architecture() {
     return texture;
   }) as [THREE.Texture, THREE.Texture, THREE.Texture], [muralSource]);
   const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#003568"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => floor.dispose(), [floor]);
+  useEffect(() => () => { floor.dispose(); ceilingGlow.dispose(); }, [floor, ceilingGlow]);
   useEffect(() => () => { sign.dispose(); tagline.dispose(); muralLeft.dispose(); muralFront.dispose(); muralRight.dispose(); }, [sign, tagline, muralLeft, muralFront, muralRight]);
   const { halfWidth: hw, front, back, height } = HALL; const length = front - back, cz = (front + back) / 2;
-  const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#e6dfd5" roughness={1} metalness={0} />;
+  const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#ffffff" roughness={1} metalness={0} />;
   return <group>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cz]} receiveShadow><planeGeometry args={[hw * 2, length]} />
-      {/* Satin wood: a faint, heavily blurred reflection of the pedestals and light pools, like the reference floor. */}
-      <MeshReflectorMaterial map={floor} color="#fff0d8" roughness={.82} metalness={0} blur={[480, 180]} resolution={384} mixBlur={1} mixStrength={.17} mirror={.08} depthScale={.42} minDepthThreshold={.3} maxDepthThreshold={1.3} />
+      {/* Polished porcelain: cool-neutral mineral variation with a restrained museum-floor reflection. */}
+      <MeshReflectorMaterial map={floor} color="#f3f5f4" roughness={.34} metalness={0} blur={[360, 100]} resolution={384} mixBlur={.75} mixStrength={.46} mirror={.28} depthScale={.3} minDepthThreshold={.25} maxDepthThreshold={1.15} />
     </mesh>
-    <mesh position={[0, height, cz]} receiveShadow><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#e8e2da" roughness={1} /></mesh>
+    <mesh position={[0, height, cz]} receiveShadow><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#f2f2ef" roughness={1} /></mesh>
+    {[-2.1, 2.1].flatMap(x => [-6.6, -4.4, -2.2, 0, 2.2, 4.4, 6.6].map(z => <CeilingFixture key={`${x}-${z}`} position={[x, height - .105, z]} glow={ceilingGlow} />))}
     <mesh position={[0, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
     <mesh position={[0, height / 2, back + .006]} receiveShadow>
       <planeGeometry args={[hw * 2, height]} />
       <meshStandardMaterial map={muralFront} roughness={1} metalness={0} />
     </mesh>
-    <mesh position={[0, height / 2, front + .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} /><meshStandardMaterial color="#f7f4ed" roughness={1} metalness={0} /></mesh>
+    <mesh position={[0, height / 2, front + .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
     {[-1, 1].map(side => <group key={side}>
       <mesh position={[side * (hw + .1), height / 2, cz]} receiveShadow><boxGeometry args={[.2, height, length]} />{wall}</mesh>
       <mesh position={[side * (hw - .006), height / 2, cz]} rotation={[0, side < 0 ? Math.PI / 2 : -Math.PI / 2, 0]} receiveShadow>
         <planeGeometry args={[length, height]} />
         <meshStandardMaterial map={side < 0 ? muralLeft : muralRight} roughness={1} metalness={0} />
       </mesh>
-      <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
-      <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#d2cbc2" roughness={1} /></mesh>
+      <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+      <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#e4e5e2" roughness={1} /></mesh>
     </group>)}
-    <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
+    <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
     <group position={[0, 0, front - .01]} rotation={[0, Math.PI, 0]}>
       <mesh position={[0, 3.85, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.92} alphaTest={.02} depthWrite={false} /></mesh>
       <mesh position={[0, 2.72, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.82} alphaTest={.02} depthWrite={false} /></mesh>
