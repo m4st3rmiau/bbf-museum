@@ -30,6 +30,49 @@ function WalkButton({ label, input, axis, value, className, children }: { label:
   return <button type="button" className={`walk-button ${className}`} aria-label={label} onPointerDown={press} onPointerUp={() => set(0)} onPointerCancel={() => set(0)} onLostPointerCapture={() => set(0)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); set(value); } }} onKeyUp={() => set(0)} onBlur={() => set(0)}>{children}</button>;
 }
 
+function MobileJoystick({ input }: { input: React.MutableRefObject<WalkInput> }) {
+  const activePointer = useRef<number | null>(null);
+  const [stick, setStick] = useState({ x: 0, y: 0, active: false });
+  const update = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const radius = Math.min(rect.width, rect.height) * .32;
+    let x = event.clientX - (rect.left + rect.width / 2), y = event.clientY - (rect.top + rect.height / 2);
+    const distance = Math.hypot(x, y);
+    if (distance > radius) { x = x / distance * radius; y = y / distance * radius; }
+    const deadZone = .1;
+    const turn = Math.abs(x / radius) < deadZone ? 0 : -(x / radius);
+    const move = Math.abs(y / radius) < deadZone ? 0 : -(y / radius);
+    input.current.turn = turn;
+    input.current.move = move;
+    input.current.wake();
+    setStick({ x, y, active: true });
+  };
+  const release = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (activePointer.current !== null && event.pointerId !== activePointer.current) return;
+    activePointer.current = null;
+    input.current.turn = 0;
+    input.current.move = 0;
+    input.current.wake();
+    setStick({ x: 0, y: 0, active: false });
+  };
+  return <div className="mobile-joystick" role="group" aria-label="Control de movimiento de la sala">
+    <button
+      type="button"
+      className="joystick-base"
+      aria-label="Arrastra para caminar y girar"
+      onPointerDown={event => { event.preventDefault(); activePointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); update(event); }}
+      onPointerMove={event => { if (activePointer.current === event.pointerId) update(event); }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
+    >
+      <span className="joystick-guides" aria-hidden="true" />
+      <span className={`joystick-stick${stick.active ? " active" : ""}`} style={{ transform: `translate3d(${stick.x}px, ${stick.y}px, 0)` }} aria-hidden="true"><span /></span>
+    </button>
+    <span>Caminar y girar</span>
+  </div>;
+}
+
 export default function Gallery({ artworks }: { artworks: Artwork[] }) {
   const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("obra");
   const [view, setView] = useState<"3d" | "cards">("3d"); const [unsupported, setUnsupported] = useState(false); const [ready, setReady] = useState(false); const [query, setQuery] = useState(""); const [searchOpen, setSearchOpen] = useState(false); const [room, setRoom] = useState(0); const [selection, setSelection] = useState<string | null>(null); const [reducedMotion, setReducedMotion] = useState(false); const [missing, setMissing] = useState(false); const [moved, setMoved] = useState(false);
@@ -65,8 +108,9 @@ export default function Gallery({ artworks }: { artworks: Artwork[] }) {
         <div className="view-switch" role="group" aria-label="Vista de galería"><button aria-label="Vista 3D" aria-pressed={view === "3d"} disabled={unsupported} onClick={() => setView("3d")}><Box size={15} /><span>Sala 3D</span></button><button aria-label="Vista de tarjetas" aria-pressed={view === "cards"} onClick={() => setView("cards")}><Grid2X2 size={15} /><span>Obras</span></button></div>
       </div>
       {view === "3d" && <>
-        {!moved && <div className="gallery-hint" role="note">Camina con las flechas del teclado · arrastra para mirar · toca una obra para acercarte</div>}
+        {!moved && <div className="gallery-hint" role="note"><span className="desktop-walk-hint">Camina con las flechas del teclado · arrastra para mirar · toca una obra para acercarte</span><span className="mobile-walk-hint">Usa el control para caminar y girar · toca una obra para acercarte</span></div>}
         <div className="walk-controls" role="group" aria-label="Recorrer la sala"><WalkButton label="Girar a la izquierda" input={input} axis="turn" value={1} className="walk-side"><ChevronLeft size={44} strokeWidth={3.2} /></WalkButton><div className="walk-center"><WalkButton label="Caminar hacia adelante" input={input} axis="move" value={1} className="walk-forward"><ChevronUp size={68} strokeWidth={3.2} /></WalkButton><WalkButton label="Caminar hacia atrás" input={input} axis="move" value={-1} className="walk-back"><ChevronDown size={30} strokeWidth={3.2} /></WalkButton></div><WalkButton label="Girar a la derecha" input={input} axis="turn" value={-1} className="walk-side"><ChevronRight size={44} strokeWidth={3.2} /></WalkButton></div>
+        <MobileJoystick input={input} />
         <nav className="room-strip" aria-label="Salas">{Array.from({ length: rooms }, (_, index) => <button key={index} type="button" className="room-tab" aria-current={index === currentRoom ? "true" : undefined} aria-label={`Sala ${index + 1}`} onClick={() => changeRoom(index)}><img src="/images/museum.webp" loading="lazy" decoding="async" alt="" /><span>Sala {index + 1}</span></button>)}</nav>
       </>}
     </>}

@@ -86,11 +86,13 @@ const PET_FRAME = { x: -.115, outer: [.3, .4] as [number, number] }, OBJECT_FRAM
 
 type PlaqueLine = { text: string; size: number; color?: string; weight?: number; italic?: boolean };
 // Blue "papel picado" tag: scalloped lower edge, punched dots and corner flowers, text on top.
-function papelPicado(lines: PlaqueLine[], width: number, height: number) {
+function papelPicado(lines: PlaqueLine[], width: number, height: number, tone: "blue" | "pink" = "blue") {
   return canvasTexture(width, height, ctx => {
     const r = height * .04, scallop = height * .055, bodyBottom = height - scallop;
     ctx.clearRect(0, 0, width, height);
-    const fill = ctx.createLinearGradient(0, 0, 0, height); fill.addColorStop(0, "#132b6e"); fill.addColorStop(1, "#0d1f52");
+    const fill = ctx.createLinearGradient(0, 0, 0, height);
+    fill.addColorStop(0, tone === "pink" ? "#ff3f82" : "#132b6e");
+    fill.addColorStop(1, tone === "pink" ? "#d92164" : "#0d1f52");
     ctx.fillStyle = fill; ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(width - r, 0); ctx.quadraticCurveTo(width, 0, width, r); ctx.lineTo(width, bodyBottom);
     const count = Math.round(width / (scallop * 2.1)), step = width / count;
     for (let k = count - 1; k >= 0; k--) ctx.arc(k * step + step / 2, bodyBottom, step / 2, 0, Math.PI, false);
@@ -124,9 +126,9 @@ function papelPicado(lines: PlaqueLine[], width: number, height: number) {
     }
   });
 }
-function Plaque({ lines, position, size, pixels, focused = false }: { lines: PlaqueLine[]; position: Vec3; size: [number, number]; pixels: [number, number]; focused?: boolean }) {
+function Plaque({ lines, position, size, pixels, focused = false, tone = "blue" }: { lines: PlaqueLine[]; position: Vec3; size: [number, number]; pixels: [number, number]; focused?: boolean; tone?: "blue" | "pink" }) {
   const fonts = useFontsReady();
-  const texture = useMemo(() => papelPicado(lines, ...pixels), [lines, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const texture = useMemo(() => papelPicado(lines, ...pixels, tone), [lines, fonts, tone]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => texture.dispose(), [texture]);
   // A little self-illumination keeps the lettering readable where the spotlight falls off.
   return <mesh position={position}><planeGeometry args={size} /><meshStandardMaterial map={texture} emissiveMap={texture} emissive="#ffffff" emissiveIntensity={focused ? .4 : .2} transparent alphaTest={.04} roughness={.85} /></mesh>;
@@ -182,7 +184,7 @@ function Pedestal({ artwork, index, selected, onSelect, onAdd }: { artwork: Artw
   return <group position={position} rotation={[0, rotation, 0]} scale={1.15}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[1.9, 1.8]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
     <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
-      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[1024, 872]} focused={selected} /></Plinth>
+      <Plinth><Plaque lines={lines} position={[0, 1.15, .313]} size={[.47, .4]} pixels={[1024, 872]} focused={selected} tone="pink" /></Plinth>
       {artwork && <>
         <SceneBoundary fallback={<PhotoFallback {...PET_FRAME} />} key={`pet-${artwork.id}`}><Suspense fallback={<PhotoFallback {...PET_FRAME} />}><Photo url={artwork.petImage} {...PET_FRAME} /></Suspense></SceneBoundary>
         <Cempasuchil position={[-.235, 1.4, .19]} />
