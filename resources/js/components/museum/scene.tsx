@@ -234,18 +234,20 @@ function LoadedFigure({ onReady }: { onReady: () => void }) {
 }
 function ModelLoadFailure({ onFailure }: { onFailure: () => void }) { useEffect(() => { onFailure(); }, [onFailure]); return null; }
 
-function CentralExhibit({ selected, onSelect, onModelReady, onModelFailure }: { selected: boolean; onSelect: (id: string) => void; onModelReady: () => void; onModelFailure: () => void }) {
+function CentralExhibit({ occupied, selected, onSelect, onModelReady, onModelFailure }: { occupied: boolean; selected: boolean; onSelect: (id: string) => void; onModelReady: () => void; onModelFailure: () => void }) {
   const lines = useMemo(() => [{ text: "El amor deja huellas", size: 78 }, { text: "Un vínculo que permanece", size: 46, color: "#d6dcf2" }], []);
   const open = () => onSelect(CENTRAL_ID);
   return <group position={HERO.position}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[7.4, 6.5]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
-    <group onClick={e => clicked(e, open)} onPointerOver={pointerOver} onPointerOut={pointerOut}>
+    <group onClick={occupied ? e => clicked(e, open) : undefined} onPointerOver={occupied ? pointerOver : undefined} onPointerOut={occupied ? pointerOut : undefined}>
       <mesh position={[0, .07, 0]} castShadow receiveShadow><boxGeometry args={[5.35, .14, 4.75]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
       <mesh position={[0, .47, 0]} castShadow receiveShadow><boxGeometry args={[5.02, .68, 4.42]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#ebe7df" roughness={1} /></mesh>
       <mesh position={[0, .825, 0]} receiveShadow><boxGeometry args={[5.1, .03, 4.5]} /><meshStandardMaterial color="#f1eee7" roughness={1} /></mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .844, .02]} raycast={() => null} renderOrder={1}><planeGeometry args={[4.55, 3.4]} /><meshBasicMaterial map={contactShadowBlob()} transparent opacity={.72} depthWrite={false} /></mesh>
-      <Plaque lines={lines} position={[0, .46, 2.216]} size={[2.05, .56]} pixels={[1200, 352]} focused={selected} />
-      {campaign.centralModel.url && <SceneBoundary fallback={<ModelLoadFailure onFailure={onModelFailure} />}><Suspense fallback={null}><LoadedFigure onReady={onModelReady} /></Suspense></SceneBoundary>}
+      {occupied && <>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .844, .02]} raycast={() => null} renderOrder={1}><planeGeometry args={[4.55, 3.4]} /><meshBasicMaterial map={contactShadowBlob()} transparent opacity={.72} depthWrite={false} /></mesh>
+        <Plaque lines={lines} position={[0, .46, 2.216]} size={[2.05, .56]} pixels={[1200, 352]} focused={selected} />
+        {campaign.centralModel.url && <SceneBoundary fallback={<ModelLoadFailure onFailure={onModelFailure} />}><Suspense fallback={null}><LoadedFigure onReady={onModelReady} /></Suspense></SceneBoundary>}
+      </>}
     </group>
     
   </group>;
@@ -446,7 +448,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
   return null;
 }
 
-export default function MuseumScene({ artworks, selection, roomKey, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
+export default function MuseumScene({ artworks, selection, roomKey, centralOccupied, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; centralOccupied: boolean; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
   useEffect(() => () => { document.body.style.cursor = ""; }, []);
   // Unmounting the Canvas (e.g. switching to the card view) makes three.js force a context loss; only a loss while mounted is a real failure.
   const detachLoss = useRef<(() => void) | null>(null);
@@ -454,7 +456,7 @@ export default function MuseumScene({ artworks, selection, roomKey, reducedMotio
   return <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 1.25]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 56, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1, outputColorSpace: THREE.SRGBColorSpace }} onCreated={({ gl }) => { gl.setClearColor("#aaa197"); gl.shadowMap.enabled = true; gl.shadowMap.type = THREE.PCFSoftShadowMap; gl.outputColorSpace = THREE.SRGBColorSpace; const canvas = gl.domElement; detachLoss.current?.(); const handleLoss = () => window.setTimeout(() => { if (canvas.isConnected) onFailure(); }, 0); canvas.addEventListener("webglcontextlost", handleLoss, { once: true }); detachLoss.current = () => canvas.removeEventListener("webglcontextlost", handleLoss); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
     <fog attach="fog" args={["#aaa197", 18, 42]} />
     <ambientLight intensity={.28} color="#ffead2" /><hemisphereLight args={["#fff1df", "#866b52", .34]} />
-    <Architecture /><CentralExhibit selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
+    <Architecture /><CentralExhibit occupied={centralOccupied} selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
     {pedestalPositions.slice(0, ROOM_SIZE).map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} selected={!!artworks[index] && selection === artworks[index].id} onSelect={onSelect} onAdd={onAdd} />)}
     <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} />
   </Canvas>;

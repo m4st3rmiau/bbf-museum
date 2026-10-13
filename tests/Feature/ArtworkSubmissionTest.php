@@ -40,6 +40,8 @@ class ArtworkSubmissionTest extends TestCase
             ->component('Gallery')
             ->has('artworks', 1)
             ->where('artworks.0.petName', 'Milo')
+            ->where('artworks.0.petImage', '/storage/'.$artwork->pet_image_path)
+            ->where('artworks.0.objectImage', '/storage/'.$artwork->object_image_path)
             ->missing('artworks.0.email')
             ->missing('artworks.0.phone')
             ->missing('artworks.0.contactName'));
