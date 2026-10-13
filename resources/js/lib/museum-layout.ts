@@ -1,7 +1,7 @@
 export type Vec3 = [number, number, number];
 export interface Pose { x: number; z: number; yaw: number; pitch: number }
 
-export const ROOM_SIZE = 8;
+export const ROOM_SIZE = 12;
 export const CENTRAL_ID = "central";
 export const EYE_HEIGHT = 1.65;
 
@@ -29,8 +29,9 @@ export function walkPath(from: Pose, to: Pose): [number, number][] {
 
 export const BACK_X = [-2.7, -.9, .9, 2.7];
 export const BACK_Z = HALL.back + 1.1;
-// Each room presents eight works: four along each side wall.
+// Each room presents twelve works: four on each side and four across the wall ahead.
 export const pedestalPositions: { position: Vec3; rotation: number }[] = Array.from({ length: ROOM_SIZE }, (_, i) => {
+  if (i >= 8) return { position: [BACK_X[i - 8], 0, BACK_Z], rotation: 0 };
   const side = i % 2 === 0 ? -1 : 1;
   return { position: [side * PEDESTAL_X, 0, PEDESTAL_ROWS[Math.floor(i / 2)]], rotation: side < 0 ? Math.PI / 2 : -Math.PI / 2 };
 });

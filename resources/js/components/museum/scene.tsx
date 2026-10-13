@@ -253,10 +253,25 @@ function Architecture() {
   const fonts = useFontsReady();
   const floor = useMemo(woodTexture, []);
   const logoSource = useTexture("/home/Grupo%202.svg");
-  const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#ead8bd"), [logoSource]);
-  const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#dfc9aa"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const muralSource = useTexture("/images/mural-bbf-galeria.webp");
+  const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#003568"), [logoSource]);
+  const [muralLeft, muralFront, muralRight] = useMemo(() => [
+    { offset: 0, width: .3766 },
+    { offset: .3766, width: .2468 },
+    { offset: .6234, width: .3766 },
+  ].map(({ offset, width }) => {
+    const texture = muralSource.clone();
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.repeat.set(width, 1);
+    texture.offset.set(offset, 0);
+    texture.anisotropy = 8;
+    texture.needsUpdate = true;
+    return texture;
+  }) as [THREE.Texture, THREE.Texture, THREE.Texture], [muralSource]);
+  const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#003568"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => floor.dispose(), [floor]);
-  useEffect(() => () => { sign.dispose(); tagline.dispose(); }, [sign, tagline]);
+  useEffect(() => () => { sign.dispose(); tagline.dispose(); muralLeft.dispose(); muralFront.dispose(); muralRight.dispose(); }, [sign, tagline, muralLeft, muralFront, muralRight]);
   const { halfWidth: hw, front, back, height } = HALL; const length = front - back, cz = (front + back) / 2;
   const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#e6dfd5" roughness={1} metalness={0} />;
   return <group>
@@ -266,16 +281,24 @@ function Architecture() {
     </mesh>
     <mesh position={[0, height, cz]} receiveShadow><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#e8e2da" roughness={1} /></mesh>
     <mesh position={[0, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
-    <mesh position={[0, height / 2, front + .1]}><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
+    <mesh position={[0, height / 2, back + .006]} receiveShadow>
+      <planeGeometry args={[hw * 2, height]} />
+      <meshStandardMaterial map={muralFront} roughness={1} metalness={0} />
+    </mesh>
+    <mesh position={[0, height / 2, front + .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} /><meshStandardMaterial color="#f7f4ed" roughness={1} metalness={0} /></mesh>
     {[-1, 1].map(side => <group key={side}>
       <mesh position={[side * (hw + .1), height / 2, cz]} receiveShadow><boxGeometry args={[.2, height, length]} />{wall}</mesh>
+      <mesh position={[side * (hw - .006), height / 2, cz]} rotation={[0, side < 0 ? Math.PI / 2 : -Math.PI / 2, 0]} receiveShadow>
+        <planeGeometry args={[length, height]} />
+        <meshStandardMaterial map={side < 0 ? muralLeft : muralRight} roughness={1} metalness={0} />
+      </mesh>
       <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
       <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#d2cbc2" roughness={1} /></mesh>
     </group>)}
     <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
     <group position={[0, 0, front - .01]} rotation={[0, Math.PI, 0]}>
-      <mesh position={[0, 3.85, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.76} alphaTest={.02} depthWrite={false} /></mesh>
-      <mesh position={[0, 2.72, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.68} alphaTest={.02} depthWrite={false} /></mesh>
+      <mesh position={[0, 3.85, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.92} alphaTest={.02} depthWrite={false} /></mesh>
+      <mesh position={[0, 2.72, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.82} alphaTest={.02} depthWrite={false} /></mesh>
     </group>
     {[1, -1].flatMap(side => PEDESTAL_ROWS.map(z => <group key={`${side}-${z}`}>
       <Spot position={[side * 4.05, height - .24, z + .18]} target={[side * 5.2, 1.7, z]} intensity={42 + ((Math.abs(z) * 7) % 5)} angle={.52} penumbra={.94} />
