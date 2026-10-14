@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { Center, MeshReflectorMaterial, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import type { Artwork } from "@/lib/types";
-import { campaign } from "@/lib/campaign";
+import { campaign, type CentralModel, type CentralWork } from "@/lib/campaign";
 import { CENTRAL_ID, EYE_HEIGHT, HALL, HERO, PEDESTAL_ROWS, ROOM_SIZE, START, WALK, focusPose, heroPose, hotspotPosition, pedestalPositions, BACK_X, BACK_Z, avoidHero, walkPath, type Pose, type Vec3 } from "@/lib/museum-layout";
 
 export interface WalkInput { move: number; turn: number; wake: () => void }
@@ -205,8 +205,8 @@ function shadowBlob() { return blob ??= radial([[0, "rgba(25,12,2,.62)"], [.35, 
 let contactBlob: THREE.CanvasTexture | null = null;
 function contactShadowBlob() { return contactBlob ??= radial([[0, "rgba(45,29,18,.58)"], [.28, "rgba(45,29,18,.42)"], [.68, "rgba(45,29,18,.14)"], [1, "rgba(45,29,18,0)"]], 384, .53); }
 
-function LoadedFigure({ onReady }: { onReady: () => void }) {
-  const gltf = useGLTF(campaign.centralModel.url!);
+function LoadedFigure({ model, onReady }: { model: CentralModel; onReady: () => void }) {
+  const gltf = useGLTF(model.url);
   const { object, scale } = useMemo(() => {
     const object = gltf.scene.clone(true);
     object.traverse(child => {
@@ -217,9 +217,11 @@ function LoadedFigure({ onReady }: { onReady: () => void }) {
       const copies = materials.map(material => {
         const copy = material.clone();
         if (copy instanceof THREE.MeshStandardMaterial) {
-          copy.metalness = 0;
-          copy.roughness = Math.max(copy.roughness, .72);
-          copy.envMapIntensity = .45;
+          if (!model.preserveMaterials) {
+            copy.metalness = 0;
+            copy.roughness = Math.max(copy.roughness, .72);
+            copy.envMapIntensity = .45;
+          }
         }
         return copy;
       });
@@ -227,26 +229,30 @@ function LoadedFigure({ onReady }: { onReady: () => void }) {
     });
     const box = new THREE.Box3().setFromObject(object);
     const size = box.getSize(new THREE.Vector3());
-    return { object, scale: Math.min(campaign.centralModel.height / Math.max(size.y, .01), campaign.centralModel.maxFootprint / Math.max(size.x, size.z, .01)) };
-  }, [gltf]);
+    return { object, scale: Math.min(model.height / Math.max(size.y, .01), model.maxFootprint / Math.max(size.x, size.z, .01)) };
+  }, [gltf, model.height, model.maxFootprint, model.preserveMaterials]);
   useEffect(() => { onReady(); }, [object, onReady]);
-  return <group position={[0, .846, 0]} rotation={[0, campaign.centralModel.rotationY, 0]}><Center top><primitive object={object} scale={scale} /></Center></group>;
+  return <group position={[0, .846, 0]} rotation={[0, model.rotationY, 0]}><Center top><primitive object={object} scale={scale} /></Center></group>;
 }
 function ModelLoadFailure({ onFailure }: { onFailure: () => void }) { useEffect(() => { onFailure(); }, [onFailure]); return null; }
 
-function CentralExhibit({ occupied, selected, onSelect, onModelReady, onModelFailure }: { occupied: boolean; selected: boolean; onSelect: (id: string) => void; onModelReady: () => void; onModelFailure: () => void }) {
-  const lines = useMemo(() => [{ text: "El amor deja huellas", size: 78 }, { text: "Un vínculo que permanece", size: 46, color: "#d6dcf2" }], []);
+function CentralExhibit({ model, work, interactive, selected, onSelect, onModelReady, onModelFailure }: { model: CentralModel | null; work: CentralWork | null; interactive: boolean; selected: boolean; onSelect: (id: string) => void; onModelReady: () => void; onModelFailure: () => void }) {
+  const lines = useMemo(() => work ? [{ text: work.title, size: 62, weight: 600 }, { text: work.productName, size: 50, weight: 600 }, { text: "Toca para conocer más", size: 38, weight: 400, italic: true, color: "#d6dcf2" }] : [], [work]);
   const open = () => onSelect(CENTRAL_ID);
   return <group position={HERO.position}>
+    {model?.preserveMaterials && <>
+      <Spot position={[-2.4, 4.8, 2.8]} target={[0, 2.35, 0]} intensity={58} angle={.52} penumbra={.9} color="#eef5ff" />
+      <Spot position={[2.2, 4.2, -2.1]} target={[0, 2.2, 0]} intensity={32} angle={.56} penumbra={.94} color="#f8fbff" />
+    </>}
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .004, 0]} raycast={() => null}><planeGeometry args={[7.4, 6.5]} /><meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} /></mesh>
-    <group onClick={occupied ? e => clicked(e, open) : undefined} onPointerOver={occupied ? pointerOver : undefined} onPointerOut={occupied ? pointerOut : undefined}>
+    <group onClick={interactive ? e => clicked(e, open) : undefined} onPointerOver={interactive ? pointerOver : undefined} onPointerOut={interactive ? pointerOut : undefined}>
       <mesh position={[0, .07, 0]} castShadow receiveShadow><boxGeometry args={[5.35, .14, 4.75]} /><meshStandardMaterial color="#98714d" roughness={.8} /></mesh>
       <mesh position={[0, .47, 0]} castShadow receiveShadow><boxGeometry args={[5.02, .68, 4.42]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#ebe7df" roughness={1} /></mesh>
       <mesh position={[0, .825, 0]} receiveShadow><boxGeometry args={[5.1, .03, 4.5]} /><meshStandardMaterial color="#f1eee7" roughness={1} /></mesh>
-      {occupied && <>
+      {model && <>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .844, .02]} raycast={() => null} renderOrder={1}><planeGeometry args={[4.55, 3.4]} /><meshBasicMaterial map={contactShadowBlob()} transparent opacity={.72} depthWrite={false} /></mesh>
-        <Plaque lines={lines} position={[0, .46, 2.216]} size={[2.05, .56]} pixels={[1200, 352]} focused={selected} />
-        {campaign.centralModel.url && <SceneBoundary fallback={<ModelLoadFailure onFailure={onModelFailure} />}><Suspense fallback={null}><LoadedFigure onReady={onModelReady} /></Suspense></SceneBoundary>}
+        {interactive && <Plaque lines={lines} position={[0, .46, 2.216]} size={[2.05, .56]} pixels={[1200, 352]} focused={selected} />}
+        <SceneBoundary key={model.url} fallback={<ModelLoadFailure onFailure={onModelFailure} />}><Suspense fallback={null}><LoadedFigure model={model} onReady={onModelReady} /></Suspense></SceneBoundary>
       </>}
     </group>
     
@@ -461,7 +467,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
   return null;
 }
 
-export default function MuseumScene({ artworks, selection, roomKey, centralOccupied, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; centralOccupied: boolean; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
+export default function MuseumScene({ artworks, selection, roomKey, centralModel, centralWork, centralInteractive, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; centralModel: CentralModel | null; centralWork: CentralWork | null; centralInteractive: boolean; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
   useEffect(() => () => { document.body.style.cursor = ""; }, []);
   // Unmounting the Canvas (e.g. switching to the card view) makes three.js force a context loss; only a loss while mounted is a real failure.
   const detachLoss = useRef<(() => void) | null>(null);
@@ -469,7 +475,7 @@ export default function MuseumScene({ artworks, selection, roomKey, centralOccup
   return <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 1.25]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 56, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12, outputColorSpace: THREE.SRGBColorSpace }} onCreated={({ gl }) => { gl.setClearColor("#c9c8c3"); gl.shadowMap.enabled = true; gl.shadowMap.type = THREE.PCFSoftShadowMap; gl.outputColorSpace = THREE.SRGBColorSpace; const canvas = gl.domElement; detachLoss.current?.(); const handleLoss = () => window.setTimeout(() => { if (canvas.isConnected) onFailure(); }, 0); canvas.addEventListener("webglcontextlost", handleLoss, { once: true }); detachLoss.current = () => canvas.removeEventListener("webglcontextlost", handleLoss); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
     <fog attach="fog" args={["#c9c8c3", 20, 46]} />
     <ambientLight intensity={.4} color="#fff4e8" /><hemisphereLight args={["#fffdf8", "#9a948d", .46]} />
-    <Architecture /><CentralExhibit occupied={centralOccupied} selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
+    <Architecture /><CentralExhibit model={centralModel} work={centralWork} interactive={centralInteractive} selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
     {pedestalPositions.slice(0, ROOM_SIZE).map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} selected={!!artworks[index] && selection === artworks[index].id} onSelect={onSelect} onAdd={onAdd} />)}
     <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} />
   </Canvas>;
