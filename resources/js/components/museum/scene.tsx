@@ -433,16 +433,29 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
     }
     // Info buttons are plain DOM nodes; pin each one to its exhibit's projected position.
     const layer = hotspots.current;
-    if (layer) layer.querySelectorAll<HTMLElement>("[data-hotspot]").forEach(el => {
-      const world = hotspotPosition(el.dataset.hotspot!); if (!world) return;
-      probe.set(...world); const distance = probe.distanceTo(camera.position); probe.project(camera);
-      const visible = probe.z < 1 && Math.abs(probe.x) < 1.08 && Math.abs(probe.y) < 1.08;
-      // "+" markers only appear when the visitor is close; info buttons shrink with distance.
-      const add = el.classList.contains("hotspot-add");
-      const presence = add ? clamp((8 - distance) / 3, 0, 1) : clamp(1.35 - distance / 32, .5, 1), scale = add ? .75 + presence * .25 : clamp(1.2 - distance / 22, .5, 1);
-      el.style.visibility = visible && presence > 0 ? "visible" : "hidden"; el.style.opacity = String(presence); el.style.pointerEvents = presence > .25 ? "auto" : "none";
-      el.style.transform = `translate3d(${(probe.x + 1) / 2 * size.width}px, ${(1 - probe.y) / 2 * size.height}px, 0) translate(-50%, -50%) scale(${scale})`;
-    });
+    if (layer) {
+      const elements = Array.from(layer.querySelectorAll<HTMLElement>("[data-hotspot]"));
+      let nearestHotspot: HTMLElement | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      elements.forEach(el => {
+        const world = hotspotPosition(el.dataset.hotspot!); if (!world) return;
+        probe.set(...world); const distance = probe.distanceTo(camera.position); probe.project(camera);
+        const visible = probe.z < 1 && Math.abs(probe.x) < 1.08 && Math.abs(probe.y) < 1.08;
+        // "+" markers only appear when the visitor is close; info buttons shrink with distance.
+        const add = el.classList.contains("hotspot-add");
+        const presence = add ? clamp((8 - distance) / 3, 0, 1) : clamp(1.35 - distance / 32, .5, 1), scale = add ? .75 + presence * .25 : clamp(1.2 - distance / 22, .5, 1);
+        el.style.visibility = visible && presence > 0 ? "visible" : "hidden"; el.style.opacity = String(presence); el.style.pointerEvents = presence > .25 ? "auto" : "none";
+        el.style.transform = `translate3d(${(probe.x + 1) / 2 * size.width}px, ${(1 - probe.y) / 2 * size.height}px, 0) translate(-50%, -50%) scale(${scale})`;
+
+        if (!add && visible && presence > .25 && distance < 5.4 && distance < nearestDistance) {
+          nearestHotspot = el;
+          nearestDistance = distance;
+        }
+      });
+
+      elements.forEach(el => el.classList.toggle("hotspot-near", el === nearestHotspot));
+    }
     if (active) invalidate();
   });
   return null;
