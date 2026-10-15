@@ -16,7 +16,7 @@ class SceneBoundary extends Component<{ children: ReactNode; fallback: ReactNode
 
 const SERIF = '"DM Sans Variable", sans-serif';
 const SANS = '"DM Sans Variable", sans-serif';
-if (campaign.centralModel.url) useGLTF.preload(campaign.centralModel.url);
+if (campaign.centralExhibits[0]?.model.url) useGLTF.preload(campaign.centralExhibits[0].model.url);
 
 // Canvas textures are drawn once; wait for the web fonts so plaques don't render in the fallback face.
 function useFontsReady() {

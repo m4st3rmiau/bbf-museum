@@ -25,3 +25,4 @@ Route::get('/galeria', fn () => Inertia::render('Gallery', [
 ]))->name('gallery');
 
 Route::get('/creditos', fn () => Inertia::render('Credits'))->name('credits');
+Route::get('/terminos-y-condiciones', fn () => Inertia::render('Terms'))->name('terms');
