@@ -11,15 +11,6 @@ class ArtworkSubmission extends Model
 
     protected $hidden = ['contact_name', 'email', 'phone'];
 
-    protected function casts(): array
-    {
-        return [
-            'contact_name' => 'encrypted',
-            'email' => 'encrypted',
-            'phone' => 'encrypted',
-        ];
-    }
-
     public function artwork(): BelongsTo
     {
         return $this->belongsTo(Artwork::class);

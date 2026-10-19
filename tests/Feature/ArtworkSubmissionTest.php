@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Artwork;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -33,6 +34,9 @@ class ArtworkSubmissionTest extends TestCase
         $artwork = Artwork::query()->sole();
         $response->assertRedirect(route('thanks', $artwork));
         $this->assertSame('ana@example.com', $artwork->submission->email);
+        $this->assertSame('Ana Pérez', DB::table('artwork_submissions')->value('contact_name'));
+        $this->assertSame('ana@example.com', DB::table('artwork_submissions')->value('email'));
+        $this->assertSame('55 1234 5678', DB::table('artwork_submissions')->value('phone'));
         Storage::disk('public')->assertExists($artwork->pet_image_path);
         Storage::disk('public')->assertExists($artwork->object_image_path);
 
