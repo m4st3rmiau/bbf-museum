@@ -5,9 +5,10 @@ import { Center, MeshReflectorMaterial, useGLTF, useTexture } from "@react-three
 import * as THREE from "three";
 import type { Artwork } from "@/lib/types";
 import { campaign, type CentralModel, type CentralWork } from "@/lib/campaign";
-import { CENTRAL_ID, EYE_HEIGHT, HALL, HERO, PEDESTAL_ROWS, ROOM_SIZE, START, WALK, focusPose, heroPose, hotspotPosition, pedestalPositions, BACK_X, BACK_Z, avoidHero, walkPath, type Pose, type Vec3 } from "@/lib/museum-layout";
+import { CENTRAL_ID, EYE_HEIGHT, HALL, HERO, PASSAGE, PEDESTAL_ROWS, ROOM_SIZE, START, WALK, focusPose, heroPose, hotspotPosition, pedestalPositions, BACK_X, BACK_Z, avoidHero, walkPath, type Pose, type Vec3 } from "@/lib/museum-layout";
 
 export interface WalkInput { move: number; turn: number; wake: () => void }
+export type RoomEntrySide = "front" | "back" | null;
 
 class SceneBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; }
@@ -282,16 +283,46 @@ function CeilingFixture({ position, glow }: { position: Vec3; glow: THREE.Textur
   </group>;
 }
 
-function Architecture() {
+function FloorChevron({ z, reversed = false }: { z: number; reversed?: boolean }) {
+  return <group position={[PASSAGE.centerX, .075, z]} rotation={[0, reversed ? Math.PI : 0, 0]}>
+    <mesh position={[-.23, 0, 0]} rotation={[0, -.58, 0]}><boxGeometry args={[.68, .018, .105]} /><meshBasicMaterial color="#fff6df" toneMapped={false} /></mesh>
+    <mesh position={[.23, 0, 0]} rotation={[0, .58, 0]}><boxGeometry args={[.68, .018, .105]} /><meshBasicMaterial color="#fff6df" toneMapped={false} /></mesh>
+  </group>;
+}
+
+function RoomPassage({ label, side }: { label: string; side: "front" | "back" }) {
+  const sign = useMemo(() => centeredTextTexture(label, "#f8ead7", 1100, 220), [label]);
+  useEffect(() => () => sign.dispose(), [sign]);
+  const wallZ = side === "back" ? HALL.back : HALL.front;
+  const direction = side === "back" ? -1 : 1;
+  const corridorCenter = wallZ + direction * PASSAGE.length / 2;
+  const signRotation = side === "front" ? Math.PI : 0;
+  return <group>
+    <mesh position={[PASSAGE.centerX, .025, corridorCenter]} receiveShadow><boxGeometry args={[PASSAGE.width, .05, PASSAGE.length]} /><meshStandardMaterial color="#b49a7e" roughness={.58} metalness={.03} /></mesh>
+    <mesh position={[PASSAGE.centerX - PASSAGE.width / 2, PASSAGE.height / 2, corridorCenter]} receiveShadow><boxGeometry args={[.16, PASSAGE.height, PASSAGE.length]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f7f5ef" roughness={1} /></mesh>
+    <mesh position={[PASSAGE.centerX + PASSAGE.width / 2, PASSAGE.height / 2, corridorCenter]} receiveShadow><boxGeometry args={[.16, PASSAGE.height, PASSAGE.length]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f7f5ef" roughness={1} /></mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height, corridorCenter]} receiveShadow><boxGeometry args={[PASSAGE.width + .16, .16, PASSAGE.length]} /><meshStandardMaterial color="#f2efe8" roughness={1} /></mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height / 2, wallZ + direction * (PASSAGE.length + .08)]} receiveShadow><boxGeometry args={[PASSAGE.width, PASSAGE.height, .16]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f4f1eb" roughness={1} /></mesh>
+    <mesh position={[PASSAGE.centerX, .12, wallZ + direction * (PASSAGE.length - .02)]}><boxGeometry args={[PASSAGE.width - .12, .18, .12]} /><meshStandardMaterial color="#c8cecc" roughness={.62} /></mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height + .28, wallZ - direction * .08]}><boxGeometry args={[1.92, .38, .1]} /><meshStandardMaterial color="#173d4d" roughness={.62} /></mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height + .28, wallZ - direction * .14]} rotation={[0, signRotation, 0]}><planeGeometry args={[1.68, .27]} /><meshBasicMaterial map={sign} transparent toneMapped={false} /></mesh>
+    {[.72, 1.72].map(distance => <FloorChevron key={distance} z={wallZ + direction * distance} reversed={side === "front"} />)}
+    {[.92, 2.05].map(distance => { const z = wallZ + direction * distance; return <group key={distance}>
+      <mesh position={[PASSAGE.centerX, PASSAGE.height - .09, z]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[.16, 28]} /><meshBasicMaterial color="#fff1d2" toneMapped={false} /></mesh>
+      <pointLight position={[PASSAGE.centerX, PASSAGE.height - .35, z]} color="#ffe3bd" intensity={10} distance={4.2} decay={2} />
+    </group>; })}
+  </group>;
+}
+
+function Architecture({ nextRoomLabel, previousRoomLabel }: { nextRoomLabel: string; previousRoomLabel: string }) {
   const fonts = useFontsReady();
   const floor = useMemo(polishedStoneTexture, []);
   const ceilingGlow = useMemo(() => radial([[0, "rgba(255,246,220,.75)"], [.34, "rgba(255,241,204,.24)"], [1, "rgba(255,241,204,0)"]]), []);
   const logoSource = useTexture("/home/Grupo%202.svg");
   const muralSource = useTexture("/images/mural-bbf-galeria.webp");
   const sign = useMemo(() => imageSilhouetteTexture(logoSource.image as CanvasImageSource, "#003568"), [logoSource]);
-  const [muralLeft, muralFront, muralRight] = useMemo(() => [
+  const [muralLeft, muralRight] = useMemo(() => [
     { offset: 0, width: .3766 },
-    { offset: .3766, width: .2468 },
     { offset: .6234, width: .3766 },
   ].map(({ offset, width }) => {
     const texture = muralSource.clone();
@@ -302,11 +333,12 @@ function Architecture() {
     texture.anisotropy = 8;
     texture.needsUpdate = true;
     return texture;
-  }) as [THREE.Texture, THREE.Texture, THREE.Texture], [muralSource]);
+  }) as [THREE.Texture, THREE.Texture], [muralSource]);
   const tagline = useMemo(() => centeredTextTexture("Donde el amor que no termina se convierte en arte.", "#003568"), [fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { floor.dispose(); ceilingGlow.dispose(); }, [floor, ceilingGlow]);
-  useEffect(() => () => { sign.dispose(); tagline.dispose(); muralLeft.dispose(); muralFront.dispose(); muralRight.dispose(); }, [sign, tagline, muralLeft, muralFront, muralRight]);
+  useEffect(() => () => { sign.dispose(); tagline.dispose(); muralLeft.dispose(); muralRight.dispose(); }, [sign, tagline, muralLeft, muralRight]);
   const { halfWidth: hw, front, back, height } = HALL; const length = front - back, cz = (front + back) / 2;
+  const openingLeft = PASSAGE.centerX - PASSAGE.width / 2, openingRight = PASSAGE.centerX + PASSAGE.width / 2;
   const wall = <meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#ffffff" roughness={1} metalness={0} />;
   return <group>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cz]} receiveShadow><planeGeometry args={[hw * 2, length]} />
@@ -315,12 +347,12 @@ function Architecture() {
     </mesh>
     <mesh position={[0, height, cz]} receiveShadow><boxGeometry args={[hw * 2 + .4, .2, length + .4]} /><meshStandardMaterial color="#f2f2ef" roughness={1} /></mesh>
     {[-2.1, 2.1].flatMap(x => [-6.6, -4.4, -2.2, 0, 2.2, 4.4, 6.6].map(z => <CeilingFixture key={`${x}-${z}`} position={[x, height - .105, z]} glow={ceilingGlow} />))}
-    <mesh position={[0, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
-    <mesh position={[0, height / 2, back + .006]} receiveShadow>
-      <planeGeometry args={[hw * 2, height]} />
-      <meshStandardMaterial map={muralFront} roughness={1} metalness={0} />
-    </mesh>
-    <mesh position={[0, height / 2, front + .1]} receiveShadow><boxGeometry args={[hw * 2 + .4, height, .2]} />{wall}</mesh>
+    <mesh position={[(-hw + openingLeft) / 2, height / 2, back - .1]} receiveShadow><boxGeometry args={[openingLeft + hw, height, .2]} />{wall}</mesh>
+    <mesh position={[(openingRight + hw) / 2, height / 2, back - .1]} receiveShadow><boxGeometry args={[hw - openingRight, height, .2]} />{wall}</mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height + (height - PASSAGE.height) / 2, back - .1]} receiveShadow><boxGeometry args={[PASSAGE.width, height - PASSAGE.height, .2]} />{wall}</mesh>
+    <mesh position={[(-hw + openingLeft) / 2, height / 2, front + .1]} receiveShadow><boxGeometry args={[openingLeft + hw, height, .2]} />{wall}</mesh>
+    <mesh position={[(openingRight + hw) / 2, height / 2, front + .1]} receiveShadow><boxGeometry args={[hw - openingRight, height, .2]} />{wall}</mesh>
+    <mesh position={[PASSAGE.centerX, PASSAGE.height + (height - PASSAGE.height) / 2, front + .1]} receiveShadow><boxGeometry args={[PASSAGE.width, height - PASSAGE.height, .2]} />{wall}</mesh>
     {[-1, 1].map(side => <group key={side}>
       <mesh position={[side * (hw + .1), height / 2, cz]} receiveShadow><boxGeometry args={[.2, height, length]} />{wall}</mesh>
       <mesh position={[side * (hw - .006), height / 2, cz]} rotation={[0, side < 0 ? Math.PI / 2 : -Math.PI / 2, 0]} receiveShadow>
@@ -330,7 +362,12 @@ function Architecture() {
       <mesh position={[side * (hw - .04), .08, cz]}><boxGeometry args={[.08, .16, length]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
       <mesh position={[side * (hw - .12), height - .08, cz]}><boxGeometry args={[.24, .16, length]} /><meshStandardMaterial color="#e4e5e2" roughness={1} /></mesh>
     </group>)}
-    <mesh position={[0, .12, back + .05]}><boxGeometry args={[hw * 2, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+    <mesh position={[(-hw + openingLeft) / 2, .12, back + .05]}><boxGeometry args={[openingLeft + hw, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+    <mesh position={[(openingRight + hw) / 2, .12, back + .05]}><boxGeometry args={[hw - openingRight, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+    <mesh position={[(-hw + openingLeft) / 2, .12, front - .05]}><boxGeometry args={[openingLeft + hw, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+    <mesh position={[(openingRight + hw) / 2, .12, front - .05]}><boxGeometry args={[hw - openingRight, .16, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.58} /></mesh>
+    <RoomPassage label={nextRoomLabel} side="back" />
+    <RoomPassage label={previousRoomLabel} side="front" />
     <group position={[0, 0, front - .01]} rotation={[0, Math.PI, 0]}>
       <mesh position={[0, 3.85, 0]}><planeGeometry args={[4.35, 1.77]} /><meshBasicMaterial map={sign} transparent opacity={.92} alphaTest={.02} depthWrite={false} /></mesh>
       <mesh position={[0, 2.72, 0]}><planeGeometry args={[4.8, .66]} /><meshBasicMaterial map={tagline} transparent opacity={.82} alphaTest={.02} depthWrite={false} /></mesh>
@@ -351,14 +388,28 @@ function Architecture() {
 function ease(t: number) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable);
+function boundWalk(x: number, z: number): [number, number] {
+  let [boundedX, boundedZ] = avoidHero(clamp(x, WALK.minX, WALK.maxX), clamp(z, WALK.minZ, WALK.maxZ));
+  if (boundedZ < HALL.back + .12 || boundedZ > HALL.front - .12) boundedX = clamp(boundedX, PASSAGE.centerX - PASSAGE.halfWidth, PASSAGE.centerX + PASSAGE.halfWidth);
+  return [boundedX, boundedZ];
+}
+
+function roomEntryPose(side: RoomEntrySide): Pose {
+  if (side === "front") return { x: PASSAGE.centerX, z: HALL.front - 1.05, yaw: 0, pitch: -.03 };
+  if (side === "back") return { x: PASSAGE.centerX, z: HALL.back + 1.05, yaw: Math.PI, pitch: -.03 };
+  return START;
+}
 
 // First-person visitor: arrows/WASD walk and turn, drag looks around, wheel walks, a selection glides the visitor to the exhibit.
-function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots, onFirstMove }: { selection: string | null; artworks: Artwork[]; roomKey: number; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onFirstMove: () => void }) {
+function WalkRig({ selection, artworks, roomKey, entrySide, reducedMotion, input, hotspots, onFirstMove, onEnterNextRoom, onEnterPreviousRoom }: { selection: string | null; artworks: Artwork[]; roomKey: number; entrySide: RoomEntrySide; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onFirstMove: () => void; onEnterNextRoom: () => void; onEnterPreviousRoom: () => void }) {
   const { camera, gl, size, invalidate } = useThree();
   const s = useRef({ ...START, vf: 0, vs: 0, vt: 0, bob: 0, offX: 0, offY: 0, room: roomKey, moved: false, tween: null as null | { from: Pose; to: Pose; path: [number, number][]; length: number; t: number; dur: number }, keys: new Set<string>(), drag: null as null | { x: number; y: number } });
   const probe = useMemo(() => new THREE.Vector3(), []);
   const locked = useRef(false); locked.current = !!selection;
   const firstMove = useRef(onFirstMove); firstMove.current = onFirstMove;
+  const enterNextRoom = useRef(onEnterNextRoom); enterNextRoom.current = onEnterNextRoom;
+  const enterPreviousRoom = useRef(onEnterPreviousRoom); enterPreviousRoom.current = onEnterPreviousRoom;
+  const crossedPassage = useRef(false);
   const markMoved = () => { if (!s.current.moved) { s.current.moved = true; firstMove.current(); } };
 
   useEffect(() => {
@@ -378,7 +429,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
       if (dx || dy) { state.tween = null; state.yaw -= dx * .0042; state.pitch = clamp(state.pitch - dy * .003, -.6, .45); markMoved(); invalidate(); }
     };
     const up = () => { state.drag = null; };
-    const wheel = (e: WheelEvent) => { if (locked.current) return; e.preventDefault(); state.tween = null; const d = clamp(-e.deltaY * .006, -1.4, 1.4); [state.x, state.z] = avoidHero(clamp(state.x - Math.sin(state.yaw) * d, WALK.minX, WALK.maxX), clamp(state.z - Math.cos(state.yaw) * d, WALK.minZ, WALK.maxZ)); markMoved(); invalidate(); };
+    const wheel = (e: WheelEvent) => { if (locked.current) return; e.preventDefault(); state.tween = null; const d = clamp(-e.deltaY * .006, -1.4, 1.4); [state.x, state.z] = boundWalk(state.x - Math.sin(state.yaw) * d, state.z - Math.cos(state.yaw) * d); markMoved(); invalidate(); };
     window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur);
     gl.domElement.addEventListener("pointerdown", down); window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
     gl.domElement.addEventListener("wheel", wheel, { passive: false });
@@ -387,7 +438,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
 
   useEffect(() => {
     const state = s.current;
-    if (state.room !== roomKey) { state.room = roomKey; Object.assign(state, START, { tween: null }); }
+    if (state.room !== roomKey) { state.room = roomKey; crossedPassage.current = false; Object.assign(state, roomEntryPose(entrySide), { tween: null }); }
     if (selection) {
       const index = selection === CENTRAL_ID ? -1 : artworks.findIndex(a => a.id === selection);
       const to = selection === CENTRAL_ID ? heroPose() : index >= 0 ? focusPose(index) : null;
@@ -403,7 +454,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
       }
     }
     invalidate();
-  }, [selection, roomKey, artworks, reducedMotion, invalidate]);
+  }, [selection, roomKey, entrySide, artworks, reducedMotion, invalidate]);
 
   useFrame((_, delta) => {
     const st = s.current; const dt = Math.min(delta, .05); let active = false;
@@ -421,9 +472,18 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
       st.vf += (clamp(f, -1, 1) - st.vf) * a; st.vt += (clamp(t, -1, 1) - st.vt) * a; st.vs += (side - st.vs) * a;
       if (Math.abs(st.vf) + Math.abs(st.vt) + Math.abs(st.vs) > .01) {
         const step = 3.6 * dt; st.yaw += st.vt * 1.45 * dt;
-        [st.x, st.z] = avoidHero(clamp(st.x - Math.sin(st.yaw) * st.vf * step + Math.cos(st.yaw) * st.vs * step, WALK.minX, WALK.maxX), clamp(st.z - Math.cos(st.yaw) * st.vf * step - Math.sin(st.yaw) * st.vs * step, WALK.minZ, WALK.maxZ));
+        [st.x, st.z] = boundWalk(st.x - Math.sin(st.yaw) * st.vf * step + Math.cos(st.yaw) * st.vs * step, st.z - Math.cos(st.yaw) * st.vf * step - Math.sin(st.yaw) * st.vs * step);
         st.bob += (Math.abs(st.vf) + Math.abs(st.vs)) * dt * 7.5; markMoved(); active = true;
       }
+    }
+    const insidePassage = Math.abs(st.x - PASSAGE.centerX) <= PASSAGE.halfWidth;
+    const enteredNextRoom = st.z <= HALL.back - PASSAGE.triggerDepth;
+    const enteredPreviousRoom = st.z >= HALL.front + PASSAGE.triggerDepth;
+    if (!locked.current && !crossedPassage.current && insidePassage && (enteredNextRoom || enteredPreviousRoom)) {
+      crossedPassage.current = true;
+      st.vf = st.vs = st.vt = 0;
+      input.current.move = input.current.turn = 0;
+      if (enteredNextRoom) enterNextRoom.current(); else enterPreviousRoom.current();
     }
     const walking = Math.abs(s.current.vf) + Math.abs(s.current.vs) > .05 && !st.tween;
     const lift = walking ? Math.sin(st.bob) * .022 : 0;
@@ -467,7 +527,7 @@ function WalkRig({ selection, artworks, roomKey, reducedMotion, input, hotspots,
   return null;
 }
 
-export default function MuseumScene({ artworks, selection, roomKey, centralModel, centralWork, centralInteractive, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove }: { artworks: Artwork[]; selection: string | null; roomKey: number; centralModel: CentralModel | null; centralWork: CentralWork | null; centralInteractive: boolean; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void }) {
+export default function MuseumScene({ artworks, selection, roomKey, entrySide, nextRoomNumber, previousRoomNumber, centralModel, centralWork, centralInteractive, reducedMotion, input, hotspots, onSelect, onAdd, onFailure, onReady, onFirstMove, onEnterNextRoom, onEnterPreviousRoom }: { artworks: Artwork[]; selection: string | null; roomKey: number; entrySide: RoomEntrySide; nextRoomNumber: number; previousRoomNumber: number; centralModel: CentralModel | null; centralWork: CentralWork | null; centralInteractive: boolean; reducedMotion: boolean; input: MutableRefObject<WalkInput>; hotspots: RefObject<HTMLElement | null>; onSelect: (id: string) => void; onAdd: () => void; onFailure: () => void; onReady: () => void; onFirstMove: () => void; onEnterNextRoom: () => void; onEnterPreviousRoom: () => void }) {
   useEffect(() => () => { document.body.style.cursor = ""; }, []);
   // Unmounting the Canvas (e.g. switching to the card view) makes three.js force a context loss; only a loss while mounted is a real failure.
   const detachLoss = useRef<(() => void) | null>(null);
@@ -475,8 +535,8 @@ export default function MuseumScene({ artworks, selection, roomKey, centralModel
   return <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 1.25]} camera={{ position: [START.x, EYE_HEIGHT, START.z], fov: 56, near: .1, far: 90 }} frameloop="demand" gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12, outputColorSpace: THREE.SRGBColorSpace }} onCreated={({ gl }) => { gl.setClearColor("#c9c8c3"); gl.shadowMap.enabled = true; gl.shadowMap.type = THREE.PCFSoftShadowMap; gl.outputColorSpace = THREE.SRGBColorSpace; const canvas = gl.domElement; detachLoss.current?.(); const handleLoss = () => window.setTimeout(() => { if (canvas.isConnected) onFailure(); }, 0); canvas.addEventListener("webglcontextlost", handleLoss, { once: true }); detachLoss.current = () => canvas.removeEventListener("webglcontextlost", handleLoss); }} fallback={<div className="scene-loading"><p>La vista 3D no está disponible.</p><button onClick={onFailure}>Ver las obras en tarjetas</button></div>}>
     <fog attach="fog" args={["#c9c8c3", 20, 46]} />
     <ambientLight intensity={.4} color="#fff4e8" /><hemisphereLight args={["#fffdf8", "#9a948d", .46]} />
-    <Architecture /><CentralExhibit model={centralModel} work={centralWork} interactive={centralInteractive} selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
+    <Architecture nextRoomLabel={`SALA ${nextRoomNumber}`} previousRoomLabel={`SALA ${previousRoomNumber}`} /><CentralExhibit model={centralModel} work={centralWork} interactive={centralInteractive} selected={selection === CENTRAL_ID} onSelect={onSelect} onModelReady={onReady} onModelFailure={onFailure} />
     {pedestalPositions.slice(0, ROOM_SIZE).map((_, index) => <Pedestal key={index} artwork={artworks[index] ?? null} index={index} selected={!!artworks[index] && selection === artworks[index].id} onSelect={onSelect} onAdd={onAdd} />)}
-    <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} />
+    <WalkRig artworks={artworks} selection={selection} roomKey={roomKey} entrySide={entrySide} reducedMotion={reducedMotion} input={input} hotspots={hotspots} onFirstMove={onFirstMove} onEnterNextRoom={onEnterNextRoom} onEnterPreviousRoom={onEnterPreviousRoom} />
   </Canvas>;
 }

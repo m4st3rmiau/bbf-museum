@@ -338,6 +338,10 @@ em { font-weight: 500; }
 .view-switch button { border-radius: 100px; border: 0; background: none; color: #fff; display: flex; align-items: center; gap: 7px; padding: 0 14px; font-size: 12px; }
 .view-switch button[aria-pressed=true] { background: #fffffff0; color: var(--navy); }
 .gallery-hint { position: absolute; z-index: 4; left: 50%; top: 82px; transform: translateX(-50%); padding: 10px 18px; border-radius: 40px; font-size: 12px; white-space: nowrap; pointer-events: none; animation: fade-in .6s; }
+.room-welcome { position: absolute; z-index: 12; top: 104px; left: 50%; width: min(420px, calc(100% - 40px)); padding: 15px 22px 17px; border: 1px solid #ffffff8c; border-radius: 18px; background: linear-gradient(145deg, #fffdf8f5, #eee8dded); color: var(--navy); text-align: center; pointer-events: none; box-shadow: 0 18px 50px #132b3840, inset 0 1px #fff; backdrop-filter: blur(14px) saturate(1.08); -webkit-backdrop-filter: blur(14px) saturate(1.08); animation: room-welcome 2.8s ease-out both; }
+.room-welcome span { display: block; margin-bottom: 4px; color: #746b60; font-size: 10px; font-weight: 650; letter-spacing: 1.5px; text-transform: uppercase; }
+.room-welcome strong { display: block; font: 650 clamp(20px, 3vw, 28px)/1.15 "DM Sans Variable", sans-serif; letter-spacing: -.4px; }
+@keyframes room-welcome { 0% { opacity: 0; transform: translate(-50%, -14px) scale(.96); } 12%, 78% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -7px) scale(.985); } }
 .walk-controls { position: absolute; z-index: 5; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 14px; pointer-events: none; }
 .walk-controls > * { pointer-events: auto; }
 .walk-center { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -413,6 +417,7 @@ em { font-weight: 500; }
   .view-switch button span { display: none; }
   .view-switch button { padding: 0 11px; }
   .gallery-hint { top: 72px; white-space: normal; text-align: center; width: calc(100% - 32px); font-size: 11px; }
+  .room-welcome { top: 74px; padding: 13px 18px 15px; }
   .walk-controls { display: none; }
   .mobile-joystick { display: flex; }
   .desktop-walk-hint { display: none; }

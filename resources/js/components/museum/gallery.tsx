@@ -3,7 +3,7 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import { Plus, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Box, Grid2X2, House, PawPrint, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ArtworkDetail, type DetailContent } from "./artwork-detail";
-import type { WalkInput } from "./scene";
+import type { RoomEntrySide, WalkInput } from "./scene";
 import type { Artwork } from "@/lib/types";
 import { campaign } from "@/lib/campaign";
 import { CENTRAL_ID, ROOM_SIZE } from "@/lib/museum-layout";
@@ -75,8 +75,8 @@ function MobileJoystick({ input }: { input: React.MutableRefObject<WalkInput> })
 
 export default function Gallery({ artworks }: { artworks: Artwork[] }) {
   const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("obra");
-  const [view, setView] = useState<"3d" | "cards">("3d"); const [unsupported, setUnsupported] = useState(false); const [ready, setReady] = useState(false); const [sceneRevision, setSceneRevision] = useState(0); const [query, setQuery] = useState(""); const [searchOpen, setSearchOpen] = useState(false); const [room, setRoom] = useState(0); const [roomPreviews, setRoomPreviews] = useState<Record<number, string>>({}); const [selection, setSelection] = useState<string | null>(null); const [reducedMotion, setReducedMotion] = useState(false); const [missing, setMissing] = useState(false); const [moved, setMoved] = useState(false);
-  const hotspotLayer = useRef<HTMLDivElement>(null); const cardRail = useRef<HTMLDivElement>(null); const handledRequest = useRef<string | null>(null); const input = useRef<WalkInput>({ move: 0, turn: 0, wake: () => undefined });
+  const [view, setView] = useState<"3d" | "cards">("3d"); const [unsupported, setUnsupported] = useState(false); const [ready, setReady] = useState(false); const [sceneRevision, setSceneRevision] = useState(0); const [query, setQuery] = useState(""); const [searchOpen, setSearchOpen] = useState(false); const [room, setRoom] = useState(0); const [entrySide, setEntrySide] = useState<RoomEntrySide>(null); const [roomPreviews, setRoomPreviews] = useState<Record<number, string>>({}); const [selection, setSelection] = useState<string | null>(null); const [reducedMotion, setReducedMotion] = useState(false); const [missing, setMissing] = useState(false); const [moved, setMoved] = useState(false); const [welcomeRoom, setWelcomeRoom] = useState<number | null>(null);
+  const hotspotLayer = useRef<HTMLDivElement>(null); const cardRail = useRef<HTMLDivElement>(null); const handledRequest = useRef<string | null>(null); const welcomeTimer = useRef<number | null>(null); const input = useRef<WalkInput>({ move: 0, turn: 0, wake: () => undefined });
   const collectionRooms = Math.max(1, Math.ceil(artworks.length / ROOM_SIZE)); const rooms = Math.max(2, Math.floor(artworks.length / ROOM_SIZE) + 1); const currentRoom = Math.min(room, rooms - 1); const centralExhibit = campaign.centralExhibits[currentRoom % campaign.centralExhibits.length] ?? null; const centralModel = centralExhibit?.model ?? null; const centralWork = centralExhibit?.work ?? null; const centralInteractive = !!centralExhibit;
   const visible = useMemo(() => currentRoom < collectionRooms ? artworks.slice(currentRoom * ROOM_SIZE, (currentRoom + 1) * ROOM_SIZE) : [], [artworks, collectionRooms, currentRoom]);
   const needle = normalize(query.trim());
@@ -106,16 +106,33 @@ export default function Gallery({ artworks }: { artworks: Artwork[] }) {
     }, 450);
     return () => window.clearTimeout(timeout);
   }, [centralModel, currentRoom, focused, ready, sceneRevision, view, visible.length]);
-  const focusArtwork = useCallback((id: string) => { const index = artworks.findIndex(a => a.id === id); if (index >= 0) setRoom(Math.floor(index / ROOM_SIZE)); setView("3d"); setQuery(""); setSearchOpen(false); (document.activeElement as HTMLElement | null)?.blur(); setSelection(id); }, [artworks]);
+  const focusArtwork = useCallback((id: string) => { const index = artworks.findIndex(a => a.id === id); if (index >= 0) { setRoom(Math.floor(index / ROOM_SIZE)); setEntrySide(null); } setView("3d"); setQuery(""); setSearchOpen(false); (document.activeElement as HTMLElement | null)?.blur(); setSelection(id); }, [artworks]);
   const focusCentral = useCallback(() => { setView("3d"); setQuery(""); setSearchOpen(false); (document.activeElement as HTMLElement | null)?.blur(); setSelection(CENTRAL_ID); }, []);
   useEffect(() => { if (!requested || handledRequest.current === requested) return; handledRequest.current = requested; if (!artworks.some(a => a.id === requested)) { setMissing(true); return; } focusArtwork(requested); }, [requested, artworks, focusArtwork]);
-  function changeRoom(next: number) { setRoom(next); setSelection(null); input.current.move = 0; input.current.turn = 0; }
+  useEffect(() => () => { if (welcomeTimer.current !== null) window.clearTimeout(welcomeTimer.current); }, []);
+  const changeRoom = useCallback((next: number, side: RoomEntrySide = null) => { setEntrySide(side); setRoom(next); setSelection(null); input.current.move = 0; input.current.turn = 0; }, []);
+  const showWelcome = useCallback((nextRoom: number) => {
+    setWelcomeRoom(nextRoom + 1);
+    if (welcomeTimer.current !== null) window.clearTimeout(welcomeTimer.current);
+    welcomeTimer.current = window.setTimeout(() => setWelcomeRoom(null), 2800);
+  }, []);
+  const enterNextRoom = useCallback(() => {
+    const nextRoom = (currentRoom + 1) % rooms;
+    changeRoom(nextRoom, "front");
+    showWelcome(nextRoom);
+  }, [changeRoom, currentRoom, rooms, showWelcome]);
+  const enterPreviousRoom = useCallback(() => {
+    const previousRoom = (currentRoom - 1 + rooms) % rooms;
+    changeRoom(previousRoom, "back");
+    showWelcome(previousRoom);
+  }, [changeRoom, currentRoom, rooms, showWelcome]);
   function scrollCards(direction: -1 | 1) { const rail = cardRail.current; if (rail) rail.scrollBy({ left: direction * rail.clientWidth * .7, behavior: reducedMotion ? "auto" : "smooth" }); }
   const hasResults = matches.length > 0 || centralMatches;
   const cards = view === "cards" ? (needle ? matches : artworks) : [];
   const initialRoomPreview = roomPreviews[0] ?? "/images/gallery-preview.webp";
   return <div className="gallery-page"><main className="gallery-surface" aria-label="Museo interactivo">
-    {view === "3d" && <div className="scene-container" id="museum-scene" tabIndex={-1} aria-label="Sala tridimensional. Usa las flechas del teclado para caminar y girar."><CanvasBoundary onFailure={onFailure}><Suspense fallback={<LoadingScene />}><Scene artworks={visible} selection={selection} roomKey={currentRoom} centralModel={centralModel} centralWork={centralWork} centralInteractive={centralInteractive} reducedMotion={reducedMotion} input={input} hotspots={hotspotLayer} onSelect={setSelection} onAdd={() => router.visit("/exhibir")} onFailure={onFailure} onReady={onReady} onFirstMove={onFirstMove} /></Suspense></CanvasBoundary>{!ready && <LoadingScene />}<div className="scene-vignette" /><FilmGrain />{!focused && <div className="hotspot-layer" ref={hotspotLayer}>{visible.map((art, index) => <button key={art.id} type="button" className="hotspot" data-hotspot={`slot-${index}`} aria-label={`Ver historia de ${art.petName}: ${art.title}`} onClick={() => setSelection(art.id)}><span>i</span><span className="hotspot-prompt" aria-hidden="true">Da tap para acercarte</span></button>)}{Array.from({ length: ROOM_SIZE - visible.length }, (_, k) => <Link key={`add-${k}`} href="/exhibir" className="hotspot hotspot-add" data-hotspot={`slot-${visible.length + k}`} aria-label="Exhibir tu obra en este pedestal"><Plus size={15} strokeWidth={2.6} /></Link>)}{centralInteractive && centralWork && <button type="button" className="hotspot" data-hotspot={CENTRAL_ID} aria-label={`Ver información: ${centralWork.productName}`} onClick={() => setSelection(CENTRAL_ID)}><span>i</span><span className="hotspot-prompt" aria-hidden="true">Da tap para acercarte</span></button>}</div>}</div>}
+    {view === "3d" && <div className="scene-container" id="museum-scene" tabIndex={-1} aria-label="Sala tridimensional. Usa las flechas del teclado para caminar y girar."><CanvasBoundary onFailure={onFailure}><Suspense fallback={<LoadingScene />}><Scene artworks={visible} selection={selection} roomKey={currentRoom} entrySide={entrySide} nextRoomNumber={(currentRoom + 1) % rooms + 1} previousRoomNumber={(currentRoom - 1 + rooms) % rooms + 1} centralModel={centralModel} centralWork={centralWork} centralInteractive={centralInteractive} reducedMotion={reducedMotion} input={input} hotspots={hotspotLayer} onSelect={setSelection} onAdd={() => router.visit("/exhibir")} onFailure={onFailure} onReady={onReady} onFirstMove={onFirstMove} onEnterNextRoom={enterNextRoom} onEnterPreviousRoom={enterPreviousRoom} /></Suspense></CanvasBoundary>{!ready && <LoadingScene />}<div className="scene-vignette" /><FilmGrain />{!focused && <div className="hotspot-layer" ref={hotspotLayer}>{visible.map((art, index) => <button key={art.id} type="button" className="hotspot" data-hotspot={`slot-${index}`} aria-label={`Ver historia de ${art.petName}: ${art.title}`} onClick={() => setSelection(art.id)}><span>i</span><span className="hotspot-prompt" aria-hidden="true">Da tap para acercarte</span></button>)}{Array.from({ length: ROOM_SIZE - visible.length }, (_, k) => <Link key={`add-${k}`} href="/exhibir" className="hotspot hotspot-add" data-hotspot={`slot-${visible.length + k}`} aria-label="Exhibir tu obra en este pedestal"><Plus size={15} strokeWidth={2.6} /></Link>)}{centralInteractive && centralWork && <button type="button" className="hotspot" data-hotspot={CENTRAL_ID} aria-label={`Ver información: ${centralWork.productName}`} onClick={() => setSelection(CENTRAL_ID)}><span>i</span><span className="hotspot-prompt" aria-hidden="true">Da tap para acercarte</span></button>}</div>}</div>}
+    {welcomeRoom !== null && view === "3d" && <div className="room-welcome" role="status" aria-live="polite"><span>Has llegado a una nueva exposición</span><strong>Bienvenido a la Sala {welcomeRoom}</strong></div>}
     {!focused && <>
       <div className="gallery-toolbar">
         <Link className="round-button" href="/" aria-label="Volver al inicio"><House size={17} /></Link>
@@ -126,7 +143,7 @@ export default function Gallery({ artworks }: { artworks: Artwork[] }) {
         <div className="view-switch" role="group" aria-label="Vista de galería"><button aria-label="Vista 3D" aria-pressed={view === "3d"} disabled={unsupported} onClick={() => setView("3d")}><Box size={15} /><span>Sala 3D</span></button><button aria-label="Vista de tarjetas" aria-pressed={view === "cards"} onClick={() => setView("cards")}><Grid2X2 size={15} /><span>Obras</span></button></div>
       </div>
       {view === "3d" && <>
-        {!moved && <div className="gallery-hint" role="note"><span className="desktop-walk-hint">Camina con las flechas del teclado · arrastra para mirar · toca una obra para acercarte</span><span className="mobile-walk-hint">Usa el control para caminar y girar · toca una obra para acercarte</span></div>}
+        {!moved && <div className="gallery-hint" role="note"><span className="desktop-walk-hint">Camina con las flechas · usa los pasillos para avanzar o regresar · toca una obra para acercarte</span><span className="mobile-walk-hint">Usa el control · entra a un pasillo para cambiar de sala</span></div>}
         <div className="walk-controls" role="group" aria-label="Recorrer la sala"><WalkButton label="Girar a la izquierda" input={input} axis="turn" value={1} className="walk-side"><ChevronLeft size={44} strokeWidth={3.2} /></WalkButton><div className="walk-center"><WalkButton label="Caminar hacia adelante" input={input} axis="move" value={1} className="walk-forward"><ChevronUp size={68} strokeWidth={3.2} /></WalkButton><WalkButton label="Caminar hacia atrás" input={input} axis="move" value={-1} className="walk-back"><ChevronDown size={30} strokeWidth={3.2} /></WalkButton></div><WalkButton label="Girar a la derecha" input={input} axis="turn" value={-1} className="walk-side"><ChevronRight size={44} strokeWidth={3.2} /></WalkButton></div>
         <MobileJoystick input={input} />
         <nav className="room-strip" aria-label="Salas">{Array.from({ length: rooms }, (_, index) => <button key={index} type="button" className="room-tab" aria-current={index === currentRoom ? "true" : undefined} aria-label={`Sala ${index + 1}`} onClick={() => changeRoom(index)}><img className="room-preview" src={roomPreviews[index] ?? initialRoomPreview} alt="" /><span><strong>Sala {index + 1}</strong></span></button>)}</nav>

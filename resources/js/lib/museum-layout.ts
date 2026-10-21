@@ -1,7 +1,7 @@
 export type Vec3 = [number, number, number];
 export interface Pose { x: number; z: number; yaw: number; pitch: number }
 
-export const ROOM_SIZE = 10;
+export const ROOM_SIZE = 12;
 export const CENTRAL_ID = "central";
 export const EYE_HEIGHT = 1.65;
 
@@ -10,7 +10,8 @@ export const HALL = { halfWidth: 5.9, front: 9, back: -9, height: 5.9 };
 export const PEDESTAL_X = 5.2;
 export const PEDESTAL_ROWS = [2.1, -.3, -2.7, -5.1];
 export const HERO = { position: [0, 0, -1.5] as Vec3, halfWidth: 2.68, halfDepth: 2.38 };
-export const WALK = { minX: -3.9, maxX: 3.9, minZ: -6.3, maxZ: 7.8 };
+export const PASSAGE = { centerX: 4.3, halfWidth: .86, width: 2.05, height: 3.7, length: 2.8, triggerDepth: 2.05 };
+export const WALK = { minX: -4.25, maxX: 4.55, minZ: HALL.back - PASSAGE.length + .35, maxZ: HALL.front + PASSAGE.length - .35 };
 export const START: Pose = { x: 0, z: 7.4, yaw: 0, pitch: -0.03 };
 
 // Keep the visitor outside the hero platform (plus a margin); pushes out along the shallowest axis.
@@ -27,9 +28,9 @@ export function walkPath(from: Pose, to: Pose): [number, number][] {
   return [[from.x, from.z], [lane, from.z], [lane, to.z], [to.x, to.z]];
 }
 
-export const BACK_X = [-2.7, -.9, .9, 2.7];
+export const BACK_X = [-4.35, -2.45, -.55, 1.35];
 export const BACK_Z = HALL.back + 1.1;
-// Each room presents ten works: four on each side and two across the wall ahead.
+// Each room presents twelve works: four on each side and four across the wall ahead.
 export const pedestalPositions: { position: Vec3; rotation: number }[] = Array.from({ length: ROOM_SIZE }, (_, i) => {
   if (i >= 8) return { position: [BACK_X[i - 8], 0, BACK_Z], rotation: 0 };
   const side = i % 2 === 0 ? -1 : 1;
