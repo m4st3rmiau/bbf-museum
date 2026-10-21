@@ -10,7 +10,7 @@ export const HALL = { halfWidth: 5.9, front: 9, back: -9, height: 5.9 };
 export const PEDESTAL_X = 5.2;
 export const PEDESTAL_ROWS = [2.1, -.3, -2.7, -5.1];
 export const HERO = { position: [0, 0, -1.5] as Vec3, halfWidth: 2.68, halfDepth: 2.38 };
-export const PASSAGE = { centerX: 4.3, halfWidth: .86, width: 2.05, height: 3.7, length: 2.8, triggerDepth: 2.05 };
+export const PASSAGE = { centerX: 4.3, halfWidth: .86, width: 2.05, height: 3.7, length: 2.8, triggerDepth: .9 };
 export const WALK = { minX: -4.25, maxX: 4.55, minZ: HALL.back - PASSAGE.length + .35, maxZ: HALL.front + PASSAGE.length - .35 };
 export const START: Pose = { x: 0, z: 7.4, yaw: 0, pitch: -0.03 };
 
