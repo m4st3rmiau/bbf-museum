@@ -303,6 +303,32 @@ function FloorChevron({ z, reversed = false }: { z: number; reversed?: boolean }
   </group>;
 }
 
+function RoomGlimpse({ wallZ, direction }: { wallZ: number; direction: -1 | 1 }) {
+  const portalZ = wallZ + direction * PASSAGE.length;
+  const previewDepth = 4.8;
+  const previewWidth = 5.4;
+  const previewCenterZ = portalZ + direction * previewDepth / 2;
+  const farWallZ = portalZ + direction * previewDepth;
+  const pedestalZ = portalZ + direction * 2.65;
+  const facesDoor = direction > 0 ? Math.PI : 0;
+
+  return <group raycast={() => null}>
+    <mesh position={[PASSAGE.centerX, .02, previewCenterZ]} receiveShadow><boxGeometry args={[previewWidth, .04, previewDepth]} /><meshStandardMaterial color="#edf0ee" roughness={.42} metalness={.04} /></mesh>
+    <mesh position={[PASSAGE.centerX, HALL.height - .1, previewCenterZ]}><boxGeometry args={[previewWidth, .2, previewDepth]} /><meshStandardMaterial color="#f2f2ef" roughness={1} /></mesh>
+    {[-1, 1].map(side => <mesh key={side} position={[PASSAGE.centerX + side * previewWidth / 2, HALL.height / 2, previewCenterZ]} receiveShadow><boxGeometry args={[.16, HALL.height, previewDepth]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#fff" roughness={1} /></mesh>)}
+    <mesh position={[PASSAGE.centerX, HALL.height / 2, farWallZ]} receiveShadow><boxGeometry args={[previewWidth, HALL.height, .16]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#fff" roughness={1} /></mesh>
+    <mesh position={[PASSAGE.centerX, .11, farWallZ - direction * .08]}><boxGeometry args={[previewWidth, .18, .1]} /><meshStandardMaterial color="#c8cecc" roughness={.62} /></mesh>
+    <mesh position={[PASSAGE.centerX, HALL.height - .12, portalZ + direction * 1.8]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[.19, 28]} /><meshBasicMaterial color="#fff1d2" toneMapped={false} /></mesh>
+    <pointLight position={[PASSAGE.centerX, HALL.height - .55, portalZ + direction * 1.8]} color="#ffe3bd" intensity={19} distance={6.5} decay={2} />
+    <group position={[PASSAGE.centerX - 1.15, 0, pedestalZ]} rotation={[0, facesDoor, 0]}>
+      <mesh position={[0, .06, 0]} receiveShadow><boxGeometry args={[1.02, .12, .96]} /><meshStandardMaterial color="#a96833" roughness={.64} /></mesh>
+      <mesh position={[0, .89, 0]} receiveShadow><boxGeometry args={[.82, 1.66, .78]} /><meshStandardMaterial map={verticalGradient(PLINTH_SHADE)} color="#f5f2eb" roughness={.82} /></mesh>
+      <mesh position={[0, 1.98, 0]}><boxGeometry args={[.76, .52, .72]} /><meshPhysicalMaterial color="#eaf1f2" transparent opacity={.16} roughness={.12} depthWrite={false} /></mesh>
+      <mesh position={[0, 1.98, .365]}><planeGeometry args={[.38, .34]} /><meshStandardMaterial color="#fff7e9" emissive="#ffd7ae" emissiveIntensity={.18} roughness={.7} /></mesh>
+    </group>
+  </group>;
+}
+
 function RoomPassage({ label, side }: { label: string; side: "front" | "back" }) {
   const sign = useMemo(() => centeredTextTexture(label, "#f8ead7", 1100, 220), [label]);
   useEffect(() => () => sign.dispose(), [sign]);
@@ -315,11 +341,11 @@ function RoomPassage({ label, side }: { label: string; side: "front" | "back" })
     <mesh position={[PASSAGE.centerX - PASSAGE.width / 2, PASSAGE.height / 2, corridorCenter]} receiveShadow><boxGeometry args={[.16, PASSAGE.height, PASSAGE.length]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f7f5ef" roughness={1} /></mesh>
     <mesh position={[PASSAGE.centerX + PASSAGE.width / 2, PASSAGE.height / 2, corridorCenter]} receiveShadow><boxGeometry args={[.16, PASSAGE.height, PASSAGE.length]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f7f5ef" roughness={1} /></mesh>
     <mesh position={[PASSAGE.centerX, PASSAGE.height, corridorCenter]} receiveShadow><boxGeometry args={[PASSAGE.width + .16, .16, PASSAGE.length]} /><meshStandardMaterial color="#f2efe8" roughness={1} /></mesh>
-    <mesh position={[PASSAGE.centerX, PASSAGE.height / 2, wallZ + direction * (PASSAGE.length + .08)]} receiveShadow><boxGeometry args={[PASSAGE.width, PASSAGE.height, .16]} /><meshStandardMaterial map={verticalGradient(WALL_SHADE)} color="#f4f1eb" roughness={1} /></mesh>
+    <RoomGlimpse wallZ={wallZ} direction={direction} />
     <mesh position={[PASSAGE.centerX, .12, wallZ + direction * (PASSAGE.length - .02)]}><boxGeometry args={[PASSAGE.width - .12, .18, .12]} /><meshStandardMaterial color="#c8cecc" roughness={.62} /></mesh>
     <mesh position={[PASSAGE.centerX, PASSAGE.height + .28, wallZ - direction * .08]}><boxGeometry args={[1.92, .38, .1]} /><meshStandardMaterial color="#173d4d" roughness={.62} /></mesh>
     <mesh position={[PASSAGE.centerX, PASSAGE.height + .28, wallZ - direction * .14]} rotation={[0, signRotation, 0]}><planeGeometry args={[1.68, .27]} /><meshBasicMaterial map={sign} transparent toneMapped={false} /></mesh>
-    {[.72, 1.72].map(distance => <FloorChevron key={distance} z={wallZ + direction * distance} reversed={side === "front"} />)}
+    {[.72, 1.72].map(distance => <FloorChevron key={distance} z={wallZ + direction * distance} reversed={side === "back"} />)}
     {[1.35].map(distance => { const z = wallZ + direction * distance; return <group key={distance}>
       <mesh position={[PASSAGE.centerX, PASSAGE.height - .09, z]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[.16, 28]} /><meshBasicMaterial color="#fff1d2" toneMapped={false} /></mesh>
       <pointLight position={[PASSAGE.centerX, PASSAGE.height - .35, z]} color="#ffe3bd" intensity={16} distance={4.8} decay={2} />
