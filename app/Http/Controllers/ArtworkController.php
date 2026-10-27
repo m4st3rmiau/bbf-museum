@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreArtworkRequest;
 use App\Models\Artwork;
+use App\Models\AttributionVisit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,12 +33,23 @@ class ArtworkController extends Controller
                     'is_published' => true,
                 ]);
 
-                $artwork->submission()->create([
+                $submission = $artwork->submission()->create([
                     'contact_name' => $validated['contact_name'],
                     'email' => $validated['email'],
                     'phone' => $validated['phone'],
                     'interest' => $validated['interest'],
                 ]);
+
+                $visit = AttributionVisit::query()->find($request->session()->get('attribution.visit_id'));
+
+                if ($visit !== null) {
+                    $visit->leadAttributions()->create([
+                        'artwork_submission_id' => $submission->getKey(),
+                        'conversion_type' => 'artwork_submission',
+                        'converted_at' => now(),
+                        'time_to_convert_seconds' => (int) $visit->visited_at->diffInSeconds(now()),
+                    ]);
+                }
 
                 return $artwork;
             });

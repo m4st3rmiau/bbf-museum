@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ArtworkSubmission extends Model
 {
@@ -14,5 +15,10 @@ class ArtworkSubmission extends Model
     public function artwork(): BelongsTo
     {
         return $this->belongsTo(Artwork::class);
+    }
+
+    public function leadAttribution(): HasOne
+    {
+        return $this->hasOne(LeadAttribution::class);
     }
 }
